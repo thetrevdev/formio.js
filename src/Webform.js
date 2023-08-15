@@ -1,6 +1,8 @@
 import _ from 'lodash';
 import moment from 'moment';
+import { processSync } from '@formio/core';
 import { compareVersions } from 'compare-versions';
+
 import EventEmitter from './EventEmitter';
 import i18nDefaults from './i18n';
 import { Formio } from './Formio';
@@ -13,7 +15,8 @@ import {
   getStringFromComponentPath,
   searchComponents,
   convertStringToHTMLElement,
-  getArrayFromComponentPath
+  getArrayFromComponentPath,
+  interpolateErrors
 } from './utils/utils';
 import { eachComponent } from './utils/formUtils';
 
@@ -891,10 +894,10 @@ export default class Webform extends NestedDataComponent {
 
     this.addComponents();
     this.on('submitButton', options => {
-      this.submit(false, options).catch(e => e !== false && console.log(e));
+      this.submit(false, options).catch(e => e !== false && e !== undefined && console.log(e));
     }, true);
 
-    this.on('checkValidity', (data) => this.checkValidity(data, true, data), true);
+    this.on('checkValidity', (data) => this.validate(this.component.components, data, { dirty: true }), true);
     this.on('requestUrl', (args) => (this.submitUrl(args.url,args.headers)), true);
     this.on('resetForm', () => this.resetValue(), true);
     this.on('deleteSubmission', () => this.deleteSubmission(), true);
@@ -1173,7 +1176,7 @@ export default class Webform extends NestedDataComponent {
       if (err) {
         const createListItem = (message, index) => {
           const messageFromIndex = !_.isUndefined(index) && err.messages && err.messages[index];
-          const keyOrPath = (messageFromIndex && messageFromIndex.formattedKeyOrPath || messageFromIndex.path) || (err.component && err.component.key) || err.fromServer && err.path;
+          const keyOrPath = (messageFromIndex?.formattedKeyOrPath || messageFromIndex?.path || messageFromIndex?.context?.path) || (err.context?.component && err.context?.component.key) || (err.component && err.component.key) || err.fromServer && err.path;
 
           let formattedKeyOrPath = keyOrPath ? getStringFromComponentPath(keyOrPath) : '';
           formattedKeyOrPath = this._parentPath + formattedKeyOrPath;
@@ -1317,7 +1320,18 @@ export default class Webform extends NestedDataComponent {
       this.pristine = false;
     }
 
-    value.isValid = this.checkData(value.data, flags);
+    this.checkData(value.data, flags);
+    if (flags.noValidate && !flags.validateOnInit && !flags.fromIFrame) {
+      if (flags.fromSubmission && this.rootPristine && this.pristine && this.error && flags.changed) {
+        this.validate(value.data, !!this.options.alwaysDirty, flags);
+      }
+      value.isValid = true;
+    }
+    else {
+      const components = this.component.components;
+      value.isValid = this.validate(components, value.data, flags);
+    }
+
     this.loading = false;
     if (this.submitted) {
       this.showErrors();
@@ -1340,12 +1354,43 @@ export default class Webform extends NestedDataComponent {
     }
   }
 
+  validate(components, data, flags = {}) {
+    const errors = processSync({
+      process: 'change',
+      components,
+      instances: this.childComponentsMap,
+      data: data,
+      after: [
+        ({ component, path, errors }) => {
+          const interpolatedErrors = interpolateErrors(component, errors, this.t.bind(this));
+          // TODO: now that validation is delegated to the child nested forms, this ensures that pathing deals with
+          // _parentPath in nested forms being (e.g. `form.data.${path}`) or _parentPath in nested forms that are
+          // nested in edit grids (e.g. `editGrid[0].form.data.${path}`)
+          if (this._parentPath) {
+            path = `${this._parentPath}${path}`;
+          }
+          const componentInstance = this.childComponentsMap[path];
+          let isDirty = false;
+          if (componentInstance?.options.alwaysDirty || flags.dirty) {
+            isDirty = true;
+          }
+          if (flags.fromSubmission && componentInstance?.hasValue(data)) {
+            isDirty = true;
+          }
+          componentInstance?.setDirty(isDirty);
+          componentInstance?.setComponentValidity(interpolatedErrors, isDirty, flags.silentCheck);
+          return [];
+        }
+      ]
+    });
+    return errors.length === 0;
+  }
+
   checkData(data, flags = {}) {
-    const valid = super.checkData(data, flags);
+    super.checkData(data, flags);
     if ((_.isEmpty(flags) || flags.noValidate) && this.submitted) {
       this.showErrors();
     }
-    return valid;
   }
 
   /**
@@ -1417,12 +1462,21 @@ export default class Webform extends NestedDataComponent {
 
         submission._vnote = data && data._vnote ? data._vnote : '';
 
-        if (!isDraft && !submission.data) {
-          return reject('Invalid Submission');
+        try {
+          if (!isDraft) {
+            if (!submission.data) {
+              return reject('Invalid Submission');
+            }
+            // Wizard forms store their component JSON in `originalComponents`
+            const components = this.originalComponents || this.component.components;
+            const isValid = this.validate(components, submission.data, { dirty: true, silentCheck: false });
+            if (!isValid || options.beforeSubmitResults?.some((result) => result.status === 'rejected')) {
+              return reject();
+            }
+          }
         }
-
-        if (!isDraft && !this.checkValidity(submission.data, true)) {
-          return reject();
+        catch (err) {
+          console.error(err);
         }
 
         this.everyComponent((comp) => {
@@ -1555,10 +1609,19 @@ export default class Webform extends NestedDataComponent {
    *
    * @returns {Promise} - A promise when the form is done submitting.
    */
-  submit(before, options) {
+  submit(before, options = {}) {
     this.submissionInProcess = true;
     if (!before) {
-      return this.beforeSubmit(options).then(() => this.executeSubmit(options));
+      return this.beforeSubmit(options).then((promiseSettledResult) => {
+        // Nested components will have nested beforeSubmitResults, so we need to flatten this array
+        options.beforeSubmitResults = promiseSettledResult.reduce((acc, curr) => {
+          if (Array.isArray(curr.value)) {
+            return [...acc, ...curr.value];
+          }
+          return [...acc, curr];
+        }, []).flat();
+        return this.executeSubmit(options);
+      });
     }
     else {
       return this.executeSubmit(options);

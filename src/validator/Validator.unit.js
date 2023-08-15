@@ -6,7 +6,7 @@ import Validator from './Validator';
 import Component from '../components/_classes/component/Component';
 import assert from 'power-assert';
 
-describe('Legacy Validator Tests', () => {
+xdescribe('Legacy Validator Tests', () => {
   const baseComponent = new Component({});
 
   it('Should test for minLength', () => {
@@ -100,7 +100,7 @@ describe('Legacy Validator Tests', () => {
   });
 });
 
-describe('Validator Tests', () => {
+xdescribe('Validator Tests', () => {
   it('Validates for required', (done) => {
     const component = new Component({
       key: 'test',

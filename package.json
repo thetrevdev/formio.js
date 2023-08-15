@@ -26,6 +26,26 @@
       "require": "./lib/cjs/formio.embed.js"
     }
   },
+  "main": "lib/cjs/index.js",
+  "module": "lib/mjs/index.js",
+  "exports": {
+    ".": {
+      "import": "./lib/mjs/index.js",
+      "require": "./lib/cjs/index.js"
+    },
+    "./utils": {
+      "import": "./lib/mjs/utils/index.js",
+      "require": "./lib/cjs/utils/index.js"
+    },
+    "./form": {
+      "import": "./lib/mjs/formio.form.js",
+      "require": "./lib/cjs/formio.form.js"
+    },
+    "./embed": {
+      "import": "./lib/mjs/formio.embed.js",
+      "require": "./lib/cjs/formio.embed.js"
+    }
+  },
   "types": "index.d.ts",
   "files": [
     "dist",

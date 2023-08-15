@@ -288,14 +288,13 @@ it('Should protect against change loops', function(done) {
     const textField = form.getComponent('textField');
     const spy = sinon.spy(textField, 'calculateComponentValue');
     form.onChange({ textField: 'test' });
-
     setTimeout(() => {
+      console.log(spy.callCount);
       expect(spy.calledOnce).to.be.true;
 
       done();
     }, 500);
-  })
-  .catch((err) => done(err));
+  }).catch((err) => done(err));
 });
 
 it('Should mark as invalid only invalid fields in multiple components', function(done) {

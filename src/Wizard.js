@@ -1,4 +1,6 @@
 import _ from 'lodash';
+import { processSync } from '@formio/core';
+
 import Webform from './Webform';
 import { Formio } from './Formio';
 import {
@@ -6,7 +8,8 @@ import {
   checkCondition,
   firstNonNil,
   uniqueKey,
-  eachComponent
+  eachComponent,
+  unescapeHTML
 } from './utils/utils';
 
 export default class Wizard extends Webform {
@@ -638,6 +641,13 @@ export default class Wizard extends Webform {
     this.establishPages();
   }
 
+  validateSubWizards(flags = {}) {
+    if (!this.subWizards || this.subWizards.length === 0) {
+      return true;
+    }
+    return this.subWizards.reduce((result, form) => form.subForm.validate(form.subForm.originalComponents, form.subForm.data, flags) && result, true);
+  }
+
   setPage(num) {
     if (num === this.page) {
       return Promise.resolve();
@@ -665,6 +675,7 @@ export default class Wizard extends Webform {
       }
       this.redraw().then(() => {
         this.checkData(this.submission.data);
+        this.validateCurrentPage();
       });
       return Promise.resolve();
     }
@@ -776,7 +787,8 @@ export default class Wizard extends Webform {
     }
 
     // Validate the form, before go to the next page
-    if (this.checkValidity(this.localData, true, this.localData, true)) {
+    const pageIsValid = this.validateCurrentPage({ dirty: true });
+    if (pageIsValid) {
       this.checkData(this.submission.data);
       return this.beforePage(true).then(() => {
         return this.setPage(this.getNextPage()).then(() => {
@@ -794,6 +806,11 @@ export default class Wizard extends Webform {
       this.scrollIntoView(this.element);
       return Promise.reject(this.showErrors([], true));
     }
+  }
+
+  validateCurrentPage(flags = {}) {
+    // Accessing the parent ensures the right instance (whether it's the parent Wizard or a nested Wizard) performs its validation
+    return this.currentPage?.parent.validate(this.currentPage.component.components, this.currentPage.parent.data, flags);
   }
 
   emitPrevPage() {
@@ -967,8 +984,8 @@ export default class Wizard extends Webform {
 
   onChange(flags, changed, modified, changes) {
     super.onChange(flags, changed, modified, changes);
-    if (this.alert && !this.submitted) {
-      this.checkValidity(this.localData, false, this.localData, true);
+    this.validateCurrentPage({ dirty: false });
+    if (this.alert) {
       this.showErrors([], true, true);
     }
 
@@ -1050,7 +1067,7 @@ export default class Wizard extends Webform {
 
     if (page && page !== this.currentPage) {
       return this.setPage(pageIndex).then(() => {
-        this.checkValidity(this.submission.data, true, this.submission.data);
+        this.validateCurrentPage({ dirty: true });
         this.showErrors();
         super.focusOnComponent(key);
       });

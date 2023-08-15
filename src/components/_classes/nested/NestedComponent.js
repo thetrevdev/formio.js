@@ -297,9 +297,15 @@ export default class NestedComponent extends Field {
       while (thisPath && !thisPath.allowData && thisPath.parent) {
         thisPath = thisPath.parent;
       }
-      const rowIndex = component.row ? `[${Number.parseInt(component.row)}]` : '';
+      // TODO: any component that is nested in e.g. a Data Grid or an Edit Grid is going to receive a row prop; the problem
+      // is that options.row is passed to each further nested component, which results in erroneous paths like
+      // `editGrid[0].container[0].textField` rather than `editGrid[0].container.textField`. This should be adapted for other
+      // components with a tree-like data model
+      const rowIndex = component.row && !['container'].includes(thisPath.component.type) ? `[${Number.parseInt(component.row)}]` : '';
       path = thisPath.path ? `${thisPath.path}${rowIndex}.` : '';
-      path += component._parentPath && component.component.shouldIncludeSubFormPath ? component._parentPath : '';
+      if (!path.includes(component._parentPath)) {
+        path += (component._parentPath && component.component.shouldIncludeSubFormPath) ? component._parentPath : '';
+      }
       path += component.component.key;
       return path;
     }
@@ -360,6 +366,13 @@ export default class NestedComponent extends Field {
     else {
       this.components.push(comp);
     }
+    if (this.root) {
+      this.root.childComponentsMap[comp.path] = comp;
+    }
+    if (this.parent) {
+      this.parent.childComponentsMap[comp.path] = comp;
+    }
+    this.childComponentsMap[comp.path] = comp;
     return comp;
   }
 
@@ -519,7 +532,7 @@ export default class NestedComponent extends Field {
   }
 
   /**
-   * Remove a component from the components array.
+   * Remove a component from the components array and from the children object
    *
    * @param {Component} component - The component to remove from the components.
    * @param {Array<Component>} components - An array of components to remove this component from.
@@ -528,6 +541,15 @@ export default class NestedComponent extends Field {
     components = components || this.components;
     component.destroy(all);
     _.remove(components, { id: component.id });
+    if (this.root?.childComponentsMap[component.path]) {
+      delete this.root.childComponentsMap[component.path];
+    }
+    if (this.parent?.childComponentsMap[component.path]) {
+      delete this.parent.childComponentsMap[component.path];
+    }
+    if (this.childComponentsMap[component.path]) {
+      delete this.childComponentsMap[component.path];
+    }
   }
 
   /**
@@ -580,13 +602,13 @@ export default class NestedComponent extends Field {
     }, super.updateValue(value, flags));
   }
 
-  shouldSkipValidation(data, dirty, row) {
+  shouldSkipValidation(data, row) {
     // Nested components with no input should not be validated.
     if (!this.component.input) {
       return true;
     }
     else {
-      return super.shouldSkipValidation(data, dirty, row);
+      return super.shouldSkipValidation(data, row);
     }
   }
 
@@ -598,12 +620,9 @@ export default class NestedComponent extends Field {
     flags = flags || {};
     row = row || this.data;
     components = components && _.isArray(components) ? components : this.getComponents();
-    const isValid = components.reduce((valid, comp) => {
-      return comp.checkData(data, flags, row) && valid;
-    }, super.checkData(data, flags, row));
-
-    this.checkModal(isValid, this.isDirty);
-    return isValid;
+    super.checkData(data, flags, row);
+    components.forEach((comp) => comp.checkData(data, flags, row));
+    this.checkModal();
   }
 
   checkConditions(data, flags, row) {
@@ -646,7 +665,7 @@ export default class NestedComponent extends Field {
    * @return {*}
    */
   beforeSubmit() {
-    return Promise.all(this.getComponents().map((comp) => comp.beforeSubmit()));
+    return Promise.allSettled(this.getComponents().map((comp) => comp.beforeSubmit()));
   }
 
   calculateValue(data, flags, row) {

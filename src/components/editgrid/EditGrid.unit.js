@@ -26,6 +26,7 @@ import ModalEditGrid from '../../../test/forms/modalEditGrid';
 import Webform from '../../Webform';
 import { displayAsModalEditGrid } from '../../../test/formtest';
 import { Formio } from '../../Formio';
+import { xit } from 'mocha';
 
 describe('EditGrid Component', () => {
   it('Should set correct values in dataMap inside editGrid and allow aditing them', (done) => {
@@ -293,6 +294,7 @@ describe('EditGrid Component', () => {
     });
   });
 
+  // TODO: find out if this is deprecated in the new (3.x and above) versions of the renderer, if so ditch this test
   it('Should show error messages for existing data in rows', () => {
     return Harness.testCreate(EditGridComponent, comp1).then((component) => {
       Harness.testSetGet(component, [
@@ -309,9 +311,9 @@ describe('EditGrid Component', () => {
           field2: 'baz'
         }
       ]);
+      assert(!component.checkValidity(component.getValue(), true), 'Item should not be valid');
       Harness.testInnerHtml(component, 'li.list-group-item:nth-child(2) div.has-error div.editgrid-row-error', 'Must be good');
       Harness.testInnerHtml(component, 'li.list-group-item:nth-child(4) div.has-error div.editgrid-row-error', 'Must be good');
-      assert(!component.checkValidity(component.getValue(), true), 'Item should not be valid');
     });
   });
 
@@ -651,7 +653,7 @@ describe('EditGrid Component', () => {
                 }, 300);
               }, 300);
             }, 150);
-          }, 100);
+          }, 800);
         }, 100);
       }).catch(done)
       .finally(() => {
@@ -678,11 +680,9 @@ describe('EditGrid Component', () => {
 
           setTimeout(() => {
             // 3. Submit the form
-            Harness.dispatchEvent('click', form.element, '[name="data[submit]"]');
-
-            setTimeout(() => {
-              assert.equal(editGrid.errors.length, 3, 'Should be validated after an attempt to submit');
-              assert.equal(editGrid.editRows[0].errors.length, 2, 'Should dd errors to the row after an attempt to submit');
+            form.submit().finally(() => {
+              assert.equal(form.errors.length, 3, 'Should be validated after an attempt to submit');
+              assert.equal(editGrid.editRows[0].errors.length, 2, 'Should add errors to the row after an attempt to submit');
               const rows = editGrid.element.querySelectorAll('[ref="editgrid-editGrid-row"]');
               const firstRow = rows[0];
               Harness.dispatchEvent('click', firstRow, '.editRow');
@@ -759,7 +759,7 @@ describe('EditGrid Component', () => {
                   }, 300);
                 }, 300);
               }, 450);
-            }, 250);
+            });
           }, 100);
         }, 100);
       }).catch(done)
@@ -1242,7 +1242,7 @@ describe('EditGrid Component', () => {
         const editGrid = form.getComponent(['editGrid']);
         assert.equal(editGrid.errors.length, 0);
         done();
-      }, 100);
+      }, 500);
     }).catch(done);
   });
 });

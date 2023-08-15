@@ -1573,3 +1573,17 @@ export function getComponentSavedTypes(fullSchema) {
 
   return null;
 }
+
+/**
+ * Interpolates @formio/core errors so that they are compatible with the renderer
+ * @param {FieldError[]} errors
+ * @param firstPass
+ * @returns {[]}
+ */
+export const interpolateErrors = (component, errors, interpolateFn) => {
+ return errors.map((error) => {
+    const { errorKeyOrMessage, context } = error;
+    const toInterpolate = component.errors && component.errors[errorKeyOrMessage] ? component.errors[errorKeyOrMessage] : errorKeyOrMessage;
+    return { ...error, message: unescapeHTML(interpolateFn(toInterpolate, context)), context: { ...context } };
+  });
+}

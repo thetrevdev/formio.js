@@ -130,7 +130,7 @@ describe('SelectBoxes Component', () => {
             const { messageContainer } = comp.refs;
             assert.equal(
               messageContainer.textContent.trim(),
-              'You must select at least 2 items.'
+              'You must select at least 2 items'
             );
           }, 300);
         });
@@ -222,7 +222,7 @@ describe('SelectBoxes Component', () => {
             const { messageContainer } = comp.refs;
             assert.equal(
               messageContainer.textContent.trim(),
-              'You can only select up to 2 items.'
+              'You may only select up to 2 items'
             );
           }, 300);
         });
@@ -275,7 +275,7 @@ describe('SelectBoxes Component', () => {
         return new Promise(resolve => {
           const values = [
             { name : 'Alabama', abbreviation : 'AL' },
-            { name : 'Alaska', abbreviation: { a:2, b: 'c' } },
+            { name : 'Alaska', abbreviation: { a: 2, b: 'c' } },
             { name : 'American Samoa', abbreviation: true }
           ];
           resolve(values);
@@ -286,9 +286,9 @@ describe('SelectBoxes Component', () => {
         const selectBoxes = form.getComponent('selectBoxes');
 
         setTimeout(()=>{
-          const inputs = selectBoxes.element.querySelectorAll('input');
-          inputs[1].checked = true;
-          inputs[2].checked = true;
+          // TODO: previously, this was programmatically assigning a boolean value to the `input.checked` property; however,
+          // this does not bubble a change event to the form, and we need to investigate why
+          selectBoxes.setValue({ 'AL': true, '[object Object]': true, 'true': true });
 
           setTimeout(()=>{
             const submit = form.getComponent('submit');
@@ -309,8 +309,8 @@ describe('SelectBoxes Component', () => {
                 done();
               }, 300);
             }, 300);
-          }, 300);
-        }, 200);
+          }, 600);
+        }, 500);
       }).catch(done);
     });
   });

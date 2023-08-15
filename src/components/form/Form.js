@@ -216,6 +216,9 @@ export default class FormComponent extends Component {
     if (this.options.onChange) {
       options.onChange = this.options.onChange;
     }
+    if (this.options.inEditGrid) {
+      options.inEditGrid = this.options.inEditGrid;
+    }
     return options;
   }
 
@@ -411,6 +414,15 @@ export default class FormComponent extends Component {
         this.subForm.url = this.formSrc;
         this.subForm.nosubmit = true;
         this.subForm.root = this.root;
+        // TODO: because we want to have O(n) traversal generally, we use a flat map of components to quickly get component
+        // instances in the new validation scheme; however, in the corner case that (a) a form is nested in an edit grid and
+        // (b) the nested form has explicit component JSON (rather than loaded from an external source), it becomes necessary
+        // for the edit grid to access the nested form component instances; this is definitely a hack but I'm not certain how
+        // to get around it, you can't just add the childComponentsMap to the root because you'll run into duplicate validation
+        // problems
+        if (this.inEditGrid && this.parent?.component.type === 'editgrid') {
+          this.parent.childComponentsMap = { ...this.subForm.root.childComponentsMap, ...this.subForm.childComponentsMap };
+        }
         this.subForm.localRoot = this.isNestedWizard ? this.localRoot : this.subForm;
         this.restoreValue();
         this.valueChanged = this.hasSetValue;
@@ -547,7 +559,7 @@ export default class FormComponent extends Component {
    *
    * @return {*}
    */
-  submitSubForm(rejectOnError) {
+  submitSubForm() {
     // If we wish to submit the form on next page, then do that here.
     if (this.shouldSubmit) {
       return this.subFormReady.then(() => {
@@ -555,6 +567,7 @@ export default class FormComponent extends Component {
           return this.dataValue;
         }
         this.subForm.nosubmit = false;
+        this.subForm.submitted = true;
         return this.subForm.submitForm().then(result => {
           this.subForm.loading = false;
           this.subForm.showAllErrors = false;
@@ -562,13 +575,8 @@ export default class FormComponent extends Component {
           return this.dataValue;
         }).catch(err => {
           this.subForm.showAllErrors = true;
-          if (rejectOnError) {
-            this.subForm.onSubmissionError(err);
-            return Promise.reject(err);
-          }
-          else {
-            return {};
-          }
+          this.subForm.onSubmissionError(err);
+          return Promise.reject(err);
         });
       });
     }

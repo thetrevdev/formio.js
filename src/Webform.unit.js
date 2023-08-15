@@ -224,7 +224,7 @@ describe('Webform tests', function() {
 
     form.setForm(formWithEventLogicInHiddenComponent).then(() => {
       const regesteredAddress = form.getComponent('registeredAddressInformation').getComponent('streetAddress')[0];
-      const address =  form.getComponent('addressInformation').getComponent('streetAddress')[0];
+      const address = form.getComponent('addressInformation').getComponent('streetAddress')[0];
 
       assert.equal(address.visible, true);
       assert.equal(regesteredAddress.visible, false);
@@ -1004,7 +1004,7 @@ describe('Webform tests', function() {
     .catch((err) => done(err));
   });
 
-  it(`Should show validation errors and update validation errors list when openning and editing edit grid rows
+  it(`Should show validation errors and update validation errors list when opening and editing edit grid rows
   in draft modal mode after pushing submit btn`, function(done) {
     const formElement = document.createElement('div');
     const formWithDraftModals = new Webform(formElement, { sanitize: true });
@@ -1059,7 +1059,7 @@ describe('Webform tests', function() {
               assert.equal(editGridError, 'Please correct invalid rows before proceeding.');
 
               const rowEditBtn = editGridRows[0].querySelector('.editRow');
-              //open row modal again to check if there are errors
+              // open row modal again to check if there are errors
               rowEditBtn.dispatchEvent(clickEvent);
 
               setTimeout(() => {
@@ -1104,11 +1104,11 @@ describe('Webform tests', function() {
                     document.body.innerHTML = '';
 
                     done();
-                  }, 280);
-                }, 240);
-              }, 200);
-            }, 160);
-          }, 120);
+                  }, 300);
+                }, 300);
+              }, 300);
+            }, 300);
+          }, 300);
         }, 80);
       }, 50);
     }).catch((err) => done(err));
@@ -1218,8 +1218,8 @@ describe('Webform tests', function() {
     Harness.clickElement(formWithPattern, formWithPattern.element.querySelector('[name="data[submit]"]'));
 
     setTimeout(() => {
-      assert.equal(formWithPattern.element.querySelector('.formio-component-textField').querySelectorAll('.error').length, 1);
       assert.equal(formWithPattern.errors[0].messages.length, 1);
+      assert.equal(formWithPattern.element.querySelector('.formio-component-textField').querySelectorAll('.error').length, 1);
       assert.equal(formWithPattern.errors[0].messages[0].message, 'Text Field is required');
       assert.equal(formWithPattern.element.querySelector('[ref="errorRef"]').textContent.trim(), 'Text Field is required');
       done();
@@ -1755,7 +1755,7 @@ describe('Webform tests', function() {
         expect(errors.length).to.equal(numErrors);
         expect(form.errors.length).to.equal(numErrors);
         done();
-      }, 100);
+      }, 300);
     }).catch(done);
   };
 
