@@ -1586,4 +1586,4 @@ export const interpolateErrors = (component, errors, interpolateFn) => {
     const toInterpolate = component.errors && component.errors[errorKeyOrMessage] ? component.errors[errorKeyOrMessage] : errorKeyOrMessage;
     return { ...error, message: unescapeHTML(interpolateFn(toInterpolate, context)), context: { ...context } };
   });
-}
+};
