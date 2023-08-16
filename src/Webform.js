@@ -1369,7 +1369,7 @@ export default class Webform extends NestedDataComponent {
           if (this._parentPath) {
             path = `${this._parentPath}${path}`;
           }
-          const componentInstance = this.childComponentsMap[path];
+          const componentInstance = this.getComponent(path);
           let isDirty = false;
           if (componentInstance?.options.alwaysDirty || flags.dirty) {
             isDirty = true;
