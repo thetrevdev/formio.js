@@ -897,7 +897,7 @@ export default class Webform extends NestedDataComponent {
       this.submit(false, options).catch(e => e !== false && e !== undefined && console.log(e));
     }, true);
 
-    this.on('checkValidity', (data) => this.validate(this.component.components, data, { dirty: true }), true);
+    this.on('checkValidity', (data) => this.validate(this.component.components, data, { dirty: true, process: 'change' }), true);
     this.on('requestUrl', (args) => (this.submitUrl(args.url,args.headers)), true);
     this.on('resetForm', () => this.resetValue(), true);
     this.on('deleteSubmission', () => this.deleteSubmission(), true);
@@ -1323,13 +1323,13 @@ export default class Webform extends NestedDataComponent {
     this.checkData(value.data, flags);
     if (flags.noValidate && !flags.validateOnInit && !flags.fromIFrame) {
       if (flags.fromSubmission && this.rootPristine && this.pristine && this.error && flags.changed) {
-        this.validate(value.data, !!this.options.alwaysDirty, flags);
+        this.validate(value.data, !!this.options.alwaysDirty, {...flags, process: 'change'});
       }
       value.isValid = true;
     }
     else {
       const components = this.component.components;
-      value.isValid = this.validate(components, value.data, flags);
+      value.isValid = this.validate(components, value.data, {...flags, process: 'change'});
     }
 
     this.loading = false;
@@ -1355,8 +1355,10 @@ export default class Webform extends NestedDataComponent {
   }
 
   validate(components, data, flags = {}) {
+    let { process } = flags;
+    process = process || 'unknown';
     const errors = processSync({
-      process: 'change',
+      process,
       components,
       instances: this.childComponentsMap,
       data: data,
@@ -1369,7 +1371,7 @@ export default class Webform extends NestedDataComponent {
           if (this._parentPath) {
             path = `${this._parentPath}${path}`;
           }
-          const componentInstance = this.getComponent(path);
+          const componentInstance = this.childComponentsMap[path];
           let isDirty = false;
           if (componentInstance?.options.alwaysDirty || flags.dirty) {
             isDirty = true;
@@ -1469,7 +1471,7 @@ export default class Webform extends NestedDataComponent {
             }
             // Wizard forms store their component JSON in `originalComponents`
             const components = this.originalComponents || this.component.components;
-            const isValid = this.validate(components, submission.data, { dirty: true, silentCheck: false });
+            const isValid = this.validate(components, submission.data, { dirty: true, silentCheck: false, process: 'submit' });
             if (!isValid || options.beforeSubmitResults?.some((result) => result.status === 'rejected')) {
               return reject();
             }
