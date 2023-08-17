@@ -222,13 +222,6 @@ export default class NestedComponent extends Field {
    * @return {Object} - The component that is located.
    */
   getComponent(path, fn, originalPath) {
-    if (this.childComponentsMap[path]) {
-      const comp = this.childComponentsMap[path];
-      if (fn) {
-        fn(comp, comp.parent ? comp.parent.components : this.root.components);
-      }
-      return comp;
-    }
     originalPath = originalPath || getStringFromComponentPath(path);
     path = getArrayFromComponentPath(path);
     const pathStr = originalPath;
