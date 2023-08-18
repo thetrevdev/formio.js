@@ -364,7 +364,10 @@ const Harness = {
     let testBad = true;
     component.on('componentChange', (change) => {
       const valid = component.checkValidity();
-      if (valid && !testBad) {
+      if (testBad && valid) {
+        return done(new Error('Validation should not pass.'));
+      }
+      if (!testBad && valid) {
         assert.equal(change.value, test.good.value);
         done();
       }
@@ -373,10 +376,12 @@ const Harness = {
       if (!testBad) {
         return done(new Error('Validation Error'));
       }
-      testBad = false;
       assert.equal(error.component.key, test.bad.field);
       assert.equal(error.message, test.bad.error);
-      component.setValue(test.good.value);
+      setTimeout(() => {
+        testBad = false;
+        component.setValue(test.good.value);
+      }, 1);
     });
 
     // Set the value.

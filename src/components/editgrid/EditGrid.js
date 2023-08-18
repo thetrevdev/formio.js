@@ -1,5 +1,5 @@
 import _ from 'lodash';
-import { processSync } from '@formio/core';
+import { processSync, validateProcessSync } from '@formio/core';
 import { editgrid as templates } from '@formio/bootstrap/components';
 
 import NestedArrayComponent from '../_classes/nestedarray/NestedArrayComponent';
@@ -1168,20 +1168,12 @@ export default class EditGridComponent extends NestedArrayComponent {
         data: editRow.data,
         process: 'validateRow',
         instances,
-        after: [
-          ({ component, path, errors }) => {
-            const interpolatedErrors = errors.map((error) => {
-              const { errorKeyOrMessage, context } = error;
-              const toInterpolate = component.errors && component.errors[errorKeyOrMessage] ? component.errors[errorKeyOrMessage] : errorKeyOrMessage;
-              return { ...error, message: unescapeHTML(this.t(toInterpolate, context)), context: { ...context } };
-            });
-            const updatedPath = `${this.path}[${editRow.rowIndex}].${path}`;
-            const componentInstance = this.childComponentsMap[updatedPath] || this.root?.childComponentsMap[updatedPath];
-            componentInstance?.setComponentValidity(interpolatedErrors, dirty, silentCheck);
-            return [];
-          }
-        ],
-      });
+        scope: { errors: [] },
+        processors: [
+          validateProcessSync,
+          this.componentErrorProcessor(dirty, silentCheck)
+        ]
+      }).errors;
       valid = errors.length === 0;
     }
 

@@ -3,7 +3,7 @@ import { conformToMask } from '@formio/vanilla-text-mask';
 import tippy from 'tippy.js';
 import _ from 'lodash';
 import isMobile from 'ismobilejs';
-import { processOne, processOneSync } from '@formio/core';
+import { processOne, processOneSync, validateProcess, validateProcessSync } from '@formio/core';
 
 import { Formio } from '../../../Formio';
 import * as FormioUtils from '../../../utils/utils';
@@ -2994,13 +2994,19 @@ export default class Component extends Element {
       return '';
     }
 
-    const errors = processOneSync({
+    const validationScope = { errors: [] };
+    processOneSync({
       component: this.component,
       data,
       row,
       path: this.path || this.component.key,
-      instance: this
+      scope: validationScope,
+      instance: this,
+      processors: [
+        validateProcessSync
+      ]
     });
+    const errors = validationScope.errors;
     const interpolatedErrors = FormioUtils.interpolateErrors(this.component, errors, this.t.bind(this));
 
     return _.map(interpolatedErrors, 'message').join('\n\n');
@@ -3029,6 +3035,19 @@ export default class Component extends Element {
     return !hasErrors;
   }
 
+  componentErrorProcessor(dirty, silentCheck) {
+    return ({ component, path, scope }) => {
+      const interpolatedErrors = scope.errors.map((error) => {
+        const { errorKeyOrMessage, context } = error;
+        const toInterpolate = component.errors && component.errors[errorKeyOrMessage] ? component.errors[errorKeyOrMessage] : errorKeyOrMessage;
+        scope.errors.push({ ...error, message: FormioUtils.unescapeHTML(this.t(toInterpolate, context)), context: { ...context } });
+      });
+      const updatedPath = `${this.path}.${path}`;
+      const componentInstance = this.childComponentsMap[updatedPath] || this.root?.childComponentsMap[updatedPath];
+      componentInstance?.setComponentValidity(interpolatedErrors, dirty, silentCheck);
+    };
+  }
+
   /**
    * Checks the validity of this component and sets the error message if it is invalid.
    *
@@ -3052,18 +3071,25 @@ export default class Component extends Element {
       data,
       row,
       path: this.path || this.component.key,
-      instance: this
+      instance: this,
+      scope: { errors: [] },
+      processors: [
+        validateProcess
+      ]
     };
 
     if (async) {
-      return processOne(processContext).then((errors) => {
+      processOne(processContext).then((errors) => {
         const interpolatedErrors = FormioUtils.interpolateErrors(this.component, errors, this.t.bind(this));
         const allErrors = this.serverErrors?.length ? [...interpolatedErrors, ...this.serverErrors] : interpolatedErrors;
         return this.setComponentValidity(allErrors, dirty, silentCheck);
       });
+      return processContext.scope.errors;
     }
 
-    const errors = processOneSync(processContext);
+    processContext.processors = [validateProcessSync];
+    processOneSync(processContext);
+    const errors = processContext.scope.errors;
     const interpolatedErrors = FormioUtils.interpolateErrors(this.component, errors, this.t.bind(this));
     const allErrors = this.serverErrors?.length ? [...interpolatedErrors, ...this.serverErrors] : interpolatedErrors;
     return this.setComponentValidity(allErrors, dirty, silentCheck);

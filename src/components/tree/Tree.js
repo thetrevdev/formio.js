@@ -1,10 +1,10 @@
 import _ from 'lodash';
-import { processSync } from '@formio/core';
+import { processSync, validateProcessSync } from '@formio/core';
 
 import Component from '../_classes/component/Component';
 import NestedDataComponent from '../_classes/nesteddata/NestedDataComponent';
 import Node from './Node';
-import { eachComponent, unescapeHTML } from '../../utils/utils';
+import { eachComponent } from '../../utils/utils';
 
 export default class TreeComponent extends NestedDataComponent {
   static schema(...extend) {
@@ -496,20 +496,11 @@ export default class TreeComponent extends NestedDataComponent {
       components,
       data,
       instances,
-      after: [
-        ({ component, path, errors }) => {
-          const interpolatedErrors = errors.map((error) => {
-            const { errorKeyOrMessage, context } = error;
-            const toInterpolate = component.errors && component.errors[errorKeyOrMessage] ? component.errors[errorKeyOrMessage] : errorKeyOrMessage;
-            return { ...error, message: unescapeHTML(this.t(toInterpolate, context)), context: { ...context } };
-          });
-          const updatedPath = `${this.path}.${path}`;
-          const componentInstance = this.childComponentsMap[updatedPath] || this.root?.childComponentsMap[updatedPath];
-          componentInstance?.setComponentValidity(interpolatedErrors, dirty, silentCheck);
-          return [];
-        }
-      ],
-    });
+      processors: [
+        validateProcessSync,
+        this.componentErrorProcessor(dirty, silentCheck)
+      ]
+    }).errors;
     return errors.length === 0;
   }
 

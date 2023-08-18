@@ -1,6 +1,6 @@
 import _ from 'lodash';
 import moment from 'moment';
-import { processSync } from '@formio/core';
+import { processSync, validateProcess, validateProcessSync } from '@formio/core';
 import { compareVersions } from 'compare-versions';
 
 import EventEmitter from './EventEmitter';
@@ -1357,14 +1357,16 @@ export default class Webform extends NestedDataComponent {
   validate(components, data, flags = {}) {
     let { process } = flags;
     process = process || 'unknown';
-    const errors = processSync({
+    return processSync({
       process,
       components,
       instances: this.childComponentsMap,
       data: data,
-      after: [
-        ({ component, path, errors }) => {
-          const interpolatedErrors = interpolateErrors(component, errors, this.t.bind(this));
+      scope: { errors: [] },
+      processors: [
+        validateProcessSync,
+        ({ component, path, scope }) => {
+          const interpolatedErrors = interpolateErrors(component, scope.errors, this.t.bind(this));
           // TODO: now that validation is delegated to the child nested forms, this ensures that pathing deals with
           // _parentPath in nested forms being (e.g. `form.data.${path}`) or _parentPath in nested forms that are
           // nested in edit grids (e.g. `editGrid[0].form.data.${path}`)
@@ -1381,11 +1383,9 @@ export default class Webform extends NestedDataComponent {
           }
           componentInstance?.setDirty(isDirty);
           componentInstance?.setComponentValidity(interpolatedErrors, isDirty, flags.silentCheck);
-          return [];
         }
       ]
-    });
-    return errors.length === 0;
+    }).errors.length === 0;
   }
 
   checkData(data, flags = {}) {

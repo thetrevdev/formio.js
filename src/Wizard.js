@@ -1,5 +1,4 @@
 import _ from 'lodash';
-import { processSync } from '@formio/core';
 
 import Webform from './Webform';
 import { Formio } from './Formio';
