@@ -10,8 +10,8 @@ import {
   Evaluator,
   getArrayFromComponentPath,
   eachComponent,
-  unescapeHTML,
-  getComponentsSchema
+  getComponentsSchema,
+  interpolateErrors
 } from '../../utils/utils';
 
 const EditRowState = {
@@ -1171,7 +1171,12 @@ export default class EditGridComponent extends NestedArrayComponent {
         scope: { errors: [] },
         processors: [
           validateProcessSync,
-          this.componentErrorProcessor(dirty, silentCheck)
+          ({ component, path, scope }) => {
+            const interpolatedErrors = interpolateErrors(component, scope.errors, this.t.bind(this));
+            const updatedPath = `${this.path}[${editRow.rowIndex}].${path}`;
+            const componentInstance = this.childComponentsMap[updatedPath] || this.root?.childComponentsMap[updatedPath];
+            componentInstance?.setComponentValidity(interpolatedErrors, dirty, silentCheck);
+          }
         ]
       }).errors;
       valid = errors.length === 0;

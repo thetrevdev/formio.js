@@ -4,7 +4,7 @@ import { processSync, validateProcessSync } from '@formio/core';
 import Component from '../_classes/component/Component';
 import NestedDataComponent from '../_classes/nesteddata/NestedDataComponent';
 import Node from './Node';
-import { eachComponent } from '../../utils/utils';
+import { eachComponent, interpolateErrors } from '../../utils/utils';
 
 export default class TreeComponent extends NestedDataComponent {
   static schema(...extend) {
@@ -498,7 +498,12 @@ export default class TreeComponent extends NestedDataComponent {
       instances,
       processors: [
         validateProcessSync,
-        this.componentErrorProcessor(dirty, silentCheck)
+        ({ component, path, scope }) => {
+          const interpolatedErrors = interpolateErrors(component, scope.errors, this.t.bind(this));
+          const updatedPath = `${this.path}.${path}`;
+          const componentInstance = this.childComponentsMap[updatedPath] || this.root?.childComponentsMap[updatedPath];
+          componentInstance?.setComponentValidity(interpolatedErrors, dirty, silentCheck);
+        }
       ]
     }).errors;
     return errors.length === 0;

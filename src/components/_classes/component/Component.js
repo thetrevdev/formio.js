@@ -3035,18 +3035,6 @@ export default class Component extends Element {
     return !hasErrors;
   }
 
-  componentErrorProcessor(dirty, silentCheck) {
-    return ({ component, path, scope }) => {
-      const interpolatedErrors = scope.errors.map((error) => {
-        const { errorKeyOrMessage, context } = error;
-        const toInterpolate = component.errors && component.errors[errorKeyOrMessage] ? component.errors[errorKeyOrMessage] : errorKeyOrMessage;
-        scope.errors.push({ ...error, message: FormioUtils.unescapeHTML(this.t(toInterpolate, context)), context: { ...context } });
-      });
-      const updatedPath = `${this.path}.${path}`;
-      const componentInstance = this.childComponentsMap[updatedPath] || this.root?.childComponentsMap[updatedPath];
-      componentInstance?.setComponentValidity(interpolatedErrors, dirty, silentCheck);
-    };
-  }
 
   /**
    * Checks the validity of this component and sets the error message if it is invalid.

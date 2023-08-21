@@ -2,7 +2,6 @@ import assert from 'power-assert';
 import _ from 'lodash';
 import EventEmitter from 'eventemitter3';
 import { expect } from 'chai';
-import { I18n } from '../src/utils/i18n';
 import FormBuilder from '../src/FormBuilder';
 import AllComponents from '../src/components';
 import Components from '../src/components/Components';
@@ -11,8 +10,8 @@ Components.setComponents(AllComponents);
 
 if (process) {
   // Do not handle unhandled rejections.
-  process.on('unhandledRejection', () => {
-    console.warn('Unhandled rejection!');
+  process.on('unhandledRejection', (err) => {
+    console.warn('Unhandled rejection:', err.message || err);
   });
 }
 
