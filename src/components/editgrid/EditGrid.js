@@ -1152,7 +1152,7 @@ export default class EditGridComponent extends NestedArrayComponent {
 
   validateRow(editRow, dirty, forceSilentCheck) {
     let valid = true;
-    const errorsSnapshot = [...this.errors];
+    let errors = [];
 
     if (this.shouldValidateRow(editRow, dirty)) {
       const silentCheck = (this.component.rowDrafts && !this.shouldValidateDraft(editRow)) || forceSilentCheck;
@@ -1163,7 +1163,7 @@ export default class EditGridComponent extends NestedArrayComponent {
       eachComponent(components, (_, path) => {
         instances[path] = this.childComponentsMap[`${this.path}[${editRow.rowIndex}].${path}`];
       });
-      const errors = processSync({
+      errors = processSync({
         components,
         data: editRow.data,
         process: 'validateRow',
@@ -1200,8 +1200,7 @@ export default class EditGridComponent extends NestedArrayComponent {
       }
     }
 
-    editRow.errors = !valid ? this.errors.filter((err) => !errorsSnapshot.includes(err)) : null;
-
+    editRow.errors = !valid ? errors : null;
     if (!this.component.rowDrafts || this.root?.submitted) {
       this.showRowErrorAlerts(editRow, !!valid);
     }
@@ -1250,7 +1249,7 @@ export default class EditGridComponent extends NestedArrayComponent {
   }
 
   setComponentValidity(messages, dirty) {
-    const errorsLength = this.errors.length;
+    const errorsLength = messages.length;
     let rowsValid = true;
     let rowsEditing = false;
 
@@ -1293,7 +1292,7 @@ export default class EditGridComponent extends NestedArrayComponent {
       return;
     }
     const message = this.invalid || this.invalidMessage(this.data, dirty);
-    if (this.errors?.length !== errorsLength && this.root?.submitted && !message) {
+    if (messages.length !== errorsLength && this.root?.submitted && !message) {
       this.setCustomValidity(message, dirty);
       this.root.showErrors();
     }
@@ -1305,7 +1304,6 @@ export default class EditGridComponent extends NestedArrayComponent {
 
   checkComponentValidity(data, dirty, row, options = {}) {
     const { silentCheck } = options;
-    const errorsLength = this.errors.length;
     const superValid = super.checkComponentValidity(data, dirty, row, options);
 
     // If super tells us that component invalid and there is no need to update alerts, just return false
@@ -1359,7 +1357,7 @@ export default class EditGridComponent extends NestedArrayComponent {
     }
 
     const message = this.invalid || this.invalidMessage(data, dirty);
-    if (this.errors?.length !== errorsLength && this.root?.submitted && !message) {
+    if (this.root?.submitted && !message) {
       this.setCustomValidity(message, dirty);
       this.root.showErrors();
     }

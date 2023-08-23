@@ -309,12 +309,6 @@ export default class Component extends Element {
     this._data = data || {};
 
     /**
-     * The existing error that this component has.
-     * @type {string}
-     */
-    this.error = '';
-
-    /**
      * Tool tip text after processing
      * @type {string}
      */
@@ -354,13 +348,6 @@ export default class Component extends Element {
      * @type {Component}
      */
     this.parent = this.options.parent;
-
-    /**
-       * Points to a flat map of child components (if applicable).
-       *
-       * @type {Object}
-       */
-    this.childComponentsMap = {};
 
     this.options.name = this.options.name || 'data';
 
@@ -1143,11 +1130,6 @@ export default class Component extends Element {
 
   getModalPreviewTemplate() {
     const dataValue = this.component.type === 'password' ? this.dataValue.replace(/./g, '•') : this.dataValue;
-    const message = this.error ? {
-      level: 'error',
-      message: this.error.message,
-    } : '';
-
     let modalLabel;
 
     if (this.hasInput && this.component.validate?.required && !this.isPDFReadOnlyMode) {
@@ -1156,7 +1138,7 @@ export default class Component extends Element {
 
     return this.renderTemplate('modalPreview', {
       previewText: this.getValueAsString(dataValue, { modalPreview: true }) || this.t('Click to set value'),
-      messages: message && this.renderTemplate('message', message),
+      messages: '',
       labelInfo: modalLabel,
     });
   }
@@ -1717,6 +1699,10 @@ export default class Component extends Element {
     return this.t(this.component.label || this.component.placeholder || this.key, { _userInput: true });
   }
 
+  get errors() {
+    return this.getValidationErrors();
+  }
+
   /**
    * Returns the error label for this component.
    * @return {*}
@@ -2205,7 +2191,7 @@ export default class Component extends Element {
     }
 
     // If we are supposed to validate on blur, then don't trigger validation yet.
-    if (this.component.validateOn === 'blur' && !this.errors.length) {
+    if (this.component.validateOn === 'blur') {
       flags.noValidate = true;
     }
 
@@ -3024,17 +3010,94 @@ export default class Component extends Element {
   }
 
   setComponentValidity(messages, dirty, silentCheck) {
-    const hasErrors = !!messages.filter(message => !message.fromServer).length;
-    if (messages.length && (!silentCheck || this.error) && (!this.isEmpty(this.defaultValue) || dirty || !this.pristine)) {
+    const errors = messages.filter(message => !message.fromServer).length;
+    if (messages.length && (!silentCheck || errors) && (!this.isEmpty(this.defaultValue) || dirty || !this.pristine)) {
       this.setCustomValidity(messages, dirty);
     }
     else if (!silentCheck) {
       this.setCustomValidity('');
     }
 
-    return !hasErrors;
+    this.checkModal(errors, messages, dirty);
+    return errors;
   }
 
+  /**
+   * Interpolate errors from the validation methods.
+   * @param {*} errors
+   * @returns
+   */
+  interpolateErrors(errors) {
+    const interpolatedErrors = FormioUtils.interpolateErrors(this.component, errors, this.t.bind(this));
+    return this.serverErrors?.length ? [...interpolatedErrors, ...this.serverErrors] : interpolatedErrors;
+  }
+
+  /**
+   * Show component validation errors.
+   * @param {*} errors - An array of errors that have occured.
+   * @param {*} data - The root submission data.
+   * @param {*} row - The contextual row data.
+   * @param {*} flags - The flags to perform validation.
+   * @returns
+   */
+  showValidationErrors(errors, data, row, flags) {
+    let isDirty = false;
+    if (this.options.alwaysDirty || flags.dirty) {
+      isDirty = true;
+    }
+    if (flags.fromSubmission && this.hasValue(data)) {
+      isDirty = true;
+    }
+    this.setDirty(isDirty);
+    return this.setComponentValidity(errors, flags.dirty, flags.silentCheck, flags.fromSubmission);
+  }
+
+  /**
+   * The validation process for processors.
+   * @param {*} scope - The processor scope.
+   * @returns
+   */
+  validate(data, row, flags = {}) {
+    if (flags.async) {
+      return this.getValidationErrors(data, row, flags).then((errors) => this.showValidationErrors(errors, data, row, flags));
+    }
+    else {
+      return this.showValidationErrors(this.getValidationErrors(data, row, flags), data, row, flags);
+    }
+  }
+
+  /**
+   * Perform a component validation.
+   * @param {*} data - The root data you wish to use for this component.
+   * @param {*} row - The contextual row data you wish to use for this component.
+   * @param {*} flags - The flags to control the behavior of the validation.
+   * @returns
+   */
+  getValidationErrors(data, row, flags = {}) {
+    data = data || this.rootValue;
+    row = row || this.data;
+    const { async = false } = flags;
+    if (this.shouldSkipValidation(data, row)) {
+      return async ? Promise.resolve([]) : [];
+    }
+    const processContext = {
+      component: this.component,
+      data,
+      row,
+      path: this.path || this.component.key,
+      instance: this,
+      scope: { errors: [] },
+      processors: [
+        async ? validateProcess : validateProcessSync
+      ]
+    };
+
+    if (async) {
+      return processOne(processContext).then(() => this.interpolateErrors(processContext.scope.errors));
+    }
+    processOneSync(processContext);
+    return this.interpolateErrors(processContext.scope.errors);
+  }
 
   /**
    * Checks the validity of this component and sets the error message if it is invalid.
@@ -3044,51 +3107,18 @@ export default class Component extends Element {
    * @param row
    * @return {boolean}
    */
-  checkComponentValidity(data, dirty, row, options = {}) {
-    data = data || this.rootValue;
-    row = row || this.data;
-    const { async = false, silentCheck = false } = options;
-
-    if (this.shouldSkipValidation(data, row)) {
-      this.setCustomValidity('');
-      return async ? Promise.resolve(true) : true;
-    }
-
-    const processContext = {
-      component: this.component,
+  checkComponentValidity(data, dirty, row, flags = {}) {
+    return this.validate(
       data,
       row,
-      path: this.path || this.component.key,
-      instance: this,
-      scope: { errors: [] },
-      processors: [
-        validateProcess
-      ]
-    };
-
-    if (async) {
-      processOne(processContext).then((errors) => {
-        const interpolatedErrors = FormioUtils.interpolateErrors(this.component, errors, this.t.bind(this));
-        const allErrors = this.serverErrors?.length ? [...interpolatedErrors, ...this.serverErrors] : interpolatedErrors;
-        return this.setComponentValidity(allErrors, dirty, silentCheck);
-      });
-      return processContext.scope.errors;
-    }
-
-    processContext.processors = [validateProcessSync];
-    processOneSync(processContext);
-    const errors = processContext.scope.errors;
-    const interpolatedErrors = FormioUtils.interpolateErrors(this.component, errors, this.t.bind(this));
-    const allErrors = this.serverErrors?.length ? [...interpolatedErrors, ...this.serverErrors] : interpolatedErrors;
-    return this.setComponentValidity(allErrors, dirty, silentCheck);
+      { ...flags, dirty }
+    ).length === 0;
   }
 
   checkValidity(data, dirty, row, silentCheck) {
     data = data || this.rootValue;
     row = row || this.data;
-    const isValid = this.checkComponentValidity(data, dirty, row, { silentCheck });
-    this.checkModal();
-    return isValid;
+    return this.checkComponentValidity(data, dirty, row, { silentCheck });
   }
 
   checkAsyncValidity(data, dirty, row, silentCheck) {
@@ -3128,12 +3158,13 @@ export default class Component extends Element {
     }
   }
 
-  checkModal(isValid = true, dirty = false) {
+  checkModal(errors = [], messages = [], dirty = false) {
+    const isValid = errors.length === 0;
     if (!this.component.modalEdit || !this.componentModal) {
       return;
     }
     if (dirty && !isValid) {
-      this.setErrorClasses([this.refs.openModal], dirty, !isValid, !!this.errors.length, this.refs.openModalWrapper);
+      this.setErrorClasses([this.refs.openModal], dirty, !isValid, !!messages.length, this.refs.openModalWrapper);
     }
     else {
       this.clearErrorClasses(this.refs.openModalWrapper);
@@ -3160,10 +3191,6 @@ export default class Component extends Element {
    */
   validateMultiple() {
     return true;
-  }
-
-  get errors() {
-    return this.error ? [this.error] : [];
   }
 
   clearErrorClasses(element = this.element) {
@@ -3238,8 +3265,7 @@ export default class Component extends Element {
       }
     }
 
-    const hasErrors = !!messages.filter(message => message.level === 'error').length;
-
+    const errors = messages.filter(message => message.level === 'error').length;
     let invalidInputRefs = inputRefs;
     // Filter the invalid input refs in multiple components
     if (this.component.multiple) {
@@ -3260,41 +3286,29 @@ export default class Component extends Element {
       if (this.refs.messageContainer) {
         this.empty(this.refs.messageContainer);
       }
-      this.error = {
+      this.emit('componentError', {
         component: this.component,
         message: messages[0].message,
         messages,
         external: !!external,
-      };
-      this.emit('componentError', this.error);
+      });
       this.addMessages(messages, dirty, invalidInputRefs);
       if (invalidInputRefs) {
-        this.setErrorClasses(invalidInputRefs, dirty, hasErrors, !!messages.length);
+        this.setErrorClasses(invalidInputRefs, dirty, !!errors.length, !!messages.length);
       }
     }
-    else if (!this.error || (this.error && this.error.external === !!external)) {
+    else if (!errors.length || (errors[0].external === !!external)) {
       if (this.refs.messageContainer) {
         this.empty(this.refs.messageContainer);
       }
       if (this.refs.modalMessageContainer) {
         this.empty(this.refs.modalMessageContainer);
       }
-      this.error = null;
       if (invalidInputRefs) {
-        this.setErrorClasses(invalidInputRefs, dirty, hasErrors, !!messages.length);
+        this.setErrorClasses(invalidInputRefs, dirty, !!errors.length, !!messages.length);
       }
       this.clearErrorClasses();
     }
-
-    // if (!this.refs.input) {
-    //   return;
-    // }
-    // this.refs.input.forEach(input => {
-    //   input = this.performInputMapping(input);
-    //   if (typeof input.setCustomValidity === 'function') {
-    //     input.setCustomValidity(message, dirty);
-    //   }
-    // });
   }
 
   /**

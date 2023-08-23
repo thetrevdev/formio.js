@@ -3,6 +3,7 @@ import _ from 'lodash';
 import Field from '../field/Field';
 import Components from '../../Components';
 import { getArrayFromComponentPath, getStringFromComponentPath, getRandomComponentId } from '../../../utils/utils';
+import { processSync } from '@formio/core';
 
 export default class NestedComponent extends Field {
   static schema(...extend) {
@@ -16,6 +17,13 @@ export default class NestedComponent extends Field {
     super(component, options, data);
     this.type = 'components';
     this._collapsed = !!this.component.collapsed;
+
+    /**
+     * Points to a flat map of child components (if applicable).
+     *
+     * @type {Object}
+     */
+    this.childComponentsMap = {};
   }
 
   get defaultSchema() {
@@ -622,7 +630,6 @@ export default class NestedComponent extends Field {
     components = components && _.isArray(components) ? components : this.getComponents();
     super.checkData(data, flags, row);
     components.forEach((comp) => comp.checkData(data, flags, row));
-    this.checkModal();
   }
 
   checkConditions(data, flags, row) {
@@ -690,30 +697,43 @@ export default class NestedComponent extends Field {
     );
   }
 
-  checkChildComponentsValidity(data, dirty, row, silentCheck, isParentValid) {
-    return this.getComponents().reduce(
-      (check, comp) => comp.checkValidity(data, dirty, row, silentCheck) && check,
-      isParentValid
-    );
-  }
-
-  checkValidity(data, dirty, row, silentCheck) {
-    if (!this.checkCondition(row, data)) {
-      this.setCustomValidity('');
-      return true;
+  validateComponents(components, data, row, flags = {}) {
+    const errors = super.validate(data, row, flags);
+    if (flags.recurse) {
+      // Since process already iterates through all nested components, return only the errors of this component.
+      return errors;
     }
-
-    const isValid = this.checkChildComponentsValidity(data, dirty, row, silentCheck, super.checkValidity(data, dirty, row, silentCheck));
-    this.checkModal(isValid, dirty);
-    return isValid;
+    let { process } = flags;
+    const { async } = flags;
+    flags.recurse = true;
+    const processorContext = {
+      process,
+      components,
+      instances: this.childComponentsMap,
+      data: data,
+      scope: { errors },
+      processors: [
+        (context) => {
+          let { path } = context;
+          // TODO: now that validation is delegated to the child nested forms, this ensures that pathing deals with
+          // _parentPath in nested forms being (e.g. `form.data.${path}`) or _parentPath in nested forms that are
+          // nested in edit grids (e.g. `editGrid[0].form.data.${path}`)
+          if (this._parentPath) {
+            path = `${this._parentPath}${path}`;
+          }
+          if (!this.childComponentsMap[path]) {
+            return;
+          }
+          return this.childComponentsMap[path].validate(context.data, context.row, flags);
+        }
+      ]
+    };
+    process = process || 'unknown';
+    return async ? process(processorContext).then((scope) => scope.errors) : processSync(processorContext).errors;
   }
 
-  checkAsyncValidity(data, dirty, row, silentCheck) {
-    return this.ready.then(() => {
-      const promises = [super.checkAsyncValidity(data, dirty, row, silentCheck)];
-      this.eachComponent((component) => promises.push(component.checkAsyncValidity(data, dirty, row, silentCheck)));
-      return Promise.all(promises).then((results) => results.reduce((valid, result) => (valid && result), true));
-    });
+  validate(data, row, flags = {}) {
+    return this.validateComponents(this.component.components, data, row, flags);
   }
 
   setPristine(pristine) {
@@ -752,13 +772,6 @@ export default class NestedComponent extends Field {
     const components = this.getComponents().slice();
     components.forEach((comp) => this.removeComponent(comp, this.components, all));
     this.components = [];
-  }
-
-  get errors() {
-    const thisErrors = this.error ? [this.error] : [];
-    return this.getComponents()
-      .reduce((errors, comp) => errors.concat(comp.errors || []), thisErrors)
-      .filter(err => err.level !== 'hidden');
   }
 
   getValue() {

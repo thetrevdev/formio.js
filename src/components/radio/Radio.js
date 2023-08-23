@@ -295,7 +295,6 @@ export default class RadioComponent extends ListComponent {
     Formio.makeRequest(this.options.formio, 'select', url, method, body, options)
     .then((response) => {
       this.loading = false;
-      this.error = null;
       this.setItems(response);
       this.optionsLoaded = true;
       this.redraw();

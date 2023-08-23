@@ -640,7 +640,6 @@ export default class SelectComponent extends ListComponent {
     Formio.makeRequest(this.options.formio, 'select', url, method, body, options)
       .then((response) => {
         this.loading = false;
-        this.error = null;
         this.setItems(response, !!search);
       })
       .catch((err) => {

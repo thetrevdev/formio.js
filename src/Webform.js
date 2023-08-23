@@ -897,7 +897,7 @@ export default class Webform extends NestedDataComponent {
       this.submit(false, options).catch(e => e !== false && e !== undefined && console.log(e));
     }, true);
 
-    this.on('checkValidity', (data) => this.validate(this.component.components, data, { dirty: true, process: 'change' }), true);
+    this.on('checkValidity', (data) => this.validate(data, data, { dirty: true, process: 'change' }), true);
     this.on('requestUrl', (args) => (this.submitUrl(args.url,args.headers)), true);
     this.on('resetForm', () => this.resetValue(), true);
     this.on('deleteSubmission', () => this.deleteSubmission(), true);
@@ -1117,19 +1117,13 @@ export default class Webform extends NestedDataComponent {
    * @returns {*}
    */
   /* eslint-disable no-unused-vars */
-  showErrors(error, triggerEvent, onChange) {
-    this.loading = false;
-    let errors = this.errors;
-    if (error) {
-      if (Array.isArray(error)) {
-        errors = errors.concat(error);
-      }
-      else {
-        errors.push(error);
-      }
+  showErrors(errors, triggerEvent, onChange) {
+    if (!errors) {
+      return;
     }
-    else {
-      errors = super.errors;
+    this.loading = false;
+    if (!Array.isArray(errors)) {
+      errors = [errors];
     }
 
     errors = errors.concat(this.customErrors);
@@ -1284,17 +1278,10 @@ export default class Webform extends NestedDataComponent {
       return false;
     }
 
-    let errors;
-    if (this.submitted) {
-      errors = this.showErrors();
-    }
-    else {
-      errors = this.showErrors(error, true);
-    }
+    this.showErrors(error, true);
     if (this.root && this.root.alert) {
       this.scrollIntoView(this.root.alert);
     }
-    return errors;
   }
 
   /**
@@ -1321,20 +1308,20 @@ export default class Webform extends NestedDataComponent {
     }
 
     this.checkData(value.data, flags);
+    let errors = [];
     if (flags.noValidate && !flags.validateOnInit && !flags.fromIFrame) {
-      if (flags.fromSubmission && this.rootPristine && this.pristine && this.error && flags.changed) {
-        this.validate(value.data, !!this.options.alwaysDirty, {...flags, process: 'change'});
+      if (flags.fromSubmission && this.rootPristine && this.pristine && flags.changed) {
+        errors = this.validate(value.data, value.data, { ...flags, process: 'change', alwaysDirty: !!this.options.alwaysDirty });
       }
-      value.isValid = true;
     }
     else {
-      const components = this.component.components;
-      value.isValid = this.validate(components, value.data, {...flags, process: 'change'});
+      errors = this.validate(value.data, value.data, {...flags, process: 'change'});
     }
+    value.isValid = errors.length === 0;
 
     this.loading = false;
     if (this.submitted) {
-      this.showErrors();
+      this.showErrors(errors);
     }
 
     // See if we need to save the draft of the form.
@@ -1351,47 +1338,6 @@ export default class Webform extends NestedDataComponent {
     if (isChangeEventEmitted && !this.initialized) {
       this.emit('initialized');
       this.initialized = true;
-    }
-  }
-
-  validate(components, data, flags = {}) {
-    let { process } = flags;
-    process = process || 'unknown';
-    return processSync({
-      process,
-      components,
-      instances: this.childComponentsMap,
-      data: data,
-      scope: { errors: [] },
-      processors: [
-        validateProcessSync,
-        ({ component, path, scope }) => {
-          const interpolatedErrors = interpolateErrors(component, scope.errors, this.t.bind(this));
-          // TODO: now that validation is delegated to the child nested forms, this ensures that pathing deals with
-          // _parentPath in nested forms being (e.g. `form.data.${path}`) or _parentPath in nested forms that are
-          // nested in edit grids (e.g. `editGrid[0].form.data.${path}`)
-          if (this._parentPath) {
-            path = `${this._parentPath}${path}`;
-          }
-          const componentInstance = this.childComponentsMap[path];
-          let isDirty = false;
-          if (componentInstance?.options.alwaysDirty || flags.dirty) {
-            isDirty = true;
-          }
-          if (flags.fromSubmission && componentInstance?.hasValue(data)) {
-            isDirty = true;
-          }
-          componentInstance?.setDirty(isDirty);
-          componentInstance?.setComponentValidity(interpolatedErrors, isDirty, flags.silentCheck);
-        }
-      ]
-    }).errors.length === 0;
-  }
-
-  checkData(data, flags = {}) {
-    super.checkData(data, flags);
-    if ((_.isEmpty(flags) || flags.noValidate) && this.submitted) {
-      this.showErrors();
     }
   }
 
@@ -1471,7 +1417,7 @@ export default class Webform extends NestedDataComponent {
             }
             // Wizard forms store their component JSON in `originalComponents`
             const components = this.originalComponents || this.component.components;
-            const isValid = this.validate(components, submission.data, { dirty: true, silentCheck: false, process: 'submit' });
+            const isValid = this.validateComponents(components, submission.data, submission.data, { dirty: true, silentCheck: false, process: 'submit' });
             if (!isValid || options.beforeSubmitResults?.some((result) => result.status === 'rejected')) {
               return reject();
             }

@@ -70,10 +70,6 @@ export default class ContainerComponent extends NestedDataComponent {
     components.forEach((comp) => comp.checkData(data, flags, this.dataValue));
   }
 
-  checkChildComponentsValidity(data, dirty, row, silentCheck, isParentValid) {
-    return super.checkChildComponentsValidity(data, dirty, this.dataValue, silentCheck, isParentValid);
-  }
-
   focus() {
     const focusableElements = getFocusableElements(this.element);
       if (focusableElements && focusableElements[0]) {

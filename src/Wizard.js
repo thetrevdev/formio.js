@@ -786,8 +786,8 @@ export default class Wizard extends Webform {
     }
 
     // Validate the form, before go to the next page
-    const pageIsValid = this.validateCurrentPage({ dirty: true });
-    if (pageIsValid) {
+    const errors = this.validateCurrentPage({ dirty: true });
+    if (errors.length === 0) {
       this.checkData(this.submission.data);
       return this.beforePage(true).then(() => {
         return this.setPage(this.getNextPage()).then(() => {
@@ -803,13 +803,13 @@ export default class Wizard extends Webform {
     else {
       this.currentPage.components.forEach((comp) => comp.setPristine(false));
       this.scrollIntoView(this.element);
-      return Promise.reject(this.showErrors([], true));
+      return Promise.reject(this.showErrors(errors, true));
     }
   }
 
   validateCurrentPage(flags = {}) {
     // Accessing the parent ensures the right instance (whether it's the parent Wizard or a nested Wizard) performs its validation
-    return this.currentPage?.parent.validate(this.currentPage.component.components, this.currentPage.parent.data, flags);
+    return this.currentPage?.parent.validateComponents(this.currentPage.component.components, this.currentPage.parent.data, flags);
   }
 
   emitPrevPage() {
@@ -983,9 +983,9 @@ export default class Wizard extends Webform {
 
   onChange(flags, changed, modified, changes) {
     super.onChange(flags, changed, modified, changes);
-    this.validateCurrentPage({ dirty: false });
+    const errors = this.validateCurrentPage({ dirty: false });
     if (this.alert) {
-      this.showErrors([], true, true);
+      this.showErrors(errors, true, true);
     }
 
     // If the pages change, need to redraw the header.
@@ -1066,8 +1066,7 @@ export default class Wizard extends Webform {
 
     if (page && page !== this.currentPage) {
       return this.setPage(pageIndex).then(() => {
-        this.validateCurrentPage({ dirty: true });
-        this.showErrors();
+        this.showErrors(this.validateCurrentPage({ dirty: true }));
         super.focusOnComponent(key);
       });
     }
