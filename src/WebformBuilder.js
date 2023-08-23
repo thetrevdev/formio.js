@@ -1386,7 +1386,7 @@ export default class WebformBuilder extends Component {
     saveButtons.forEach((saveButton) => {
       this.editForm.addEventListener(saveButton, 'click', (event) => {
         event.preventDefault();
-        const errors = this.editForm.validate(this.editForm.data, this.editForm.data, {
+        const errors = this.editForm.validate(this.editForm.data, {
           dirty: true
         });
         if (errors.length) {

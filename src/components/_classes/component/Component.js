@@ -3053,20 +3053,6 @@ export default class Component extends Element {
   }
 
   /**
-   * The validation process for processors.
-   * @param {*} scope - The processor scope.
-   * @returns
-   */
-  validate(data, row, flags = {}) {
-    if (flags.async) {
-      return this.getValidationErrors(data, row, flags).then((errors) => this.showValidationErrors(errors, data, row, flags));
-    }
-    else {
-      return this.showValidationErrors(this.getValidationErrors(data, row, flags), data, row, flags);
-    }
-  }
-
-  /**
    * Perform a component validation.
    * @param {*} data - The root data you wish to use for this component.
    * @param {*} row - The contextual row data you wish to use for this component.
@@ -3107,17 +3093,37 @@ export default class Component extends Element {
    * @param row
    * @return {boolean}
    */
-  checkComponentValidity(data, dirty, row, flags = {}) {
-    return this.validate(
-      data,
-      row,
-      { ...flags, dirty }
-    ).length === 0;
+  checkComponentValidity(data, dirty, row, flags = {}, allErrors = []) {
+    data = data || this.rootValue;
+    row = row || this.data;
+    flags.dirty = dirty || false;
+    if (flags.async) {
+      return this.getValidationErrors(data, row, flags).then((errors) => {
+        allErrors = allErrors.concat(errors);
+        this.showValidationErrors(errors, data, row, flags);
+        return errors.length === 0;
+      });
+    }
+    else {
+      const errors = this.getValidationErrors(data, row, flags);
+      this.showValidationErrors(errors, data, row, flags);
+      allErrors = allErrors.concat(errors);
+      return errors.length === 0;
+    }
   }
 
+  /**
+   * Checks the validity of the component.
+   * @param {*} data
+   * @param {*} dirty
+   * @param {*} row
+   * @param {*} silentCheck
+   * @returns
+   */
   checkValidity(data, dirty, row, silentCheck) {
     data = data || this.rootValue;
     row = row || this.data;
+    console.log('Deprecation warning:  Component.checkValidity() will be deprecated in 6.x version of renderer.');
     return this.checkComponentValidity(data, dirty, row, { silentCheck });
   }
 

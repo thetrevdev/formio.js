@@ -644,7 +644,7 @@ export default class Wizard extends Webform {
     if (!this.subWizards || this.subWizards.length === 0) {
       return true;
     }
-    return this.subWizards.reduce((result, form) => form.subForm.validate(form.subForm.originalComponents, form.subForm.data, flags) && result, true);
+    return this.subWizards.reduce((result, form) => (form.subForm.validateComponents(form.subForm.originalComponents, form.subForm.data, flags).length === 0) && result, true);
   }
 
   setPage(num) {

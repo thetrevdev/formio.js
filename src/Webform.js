@@ -897,7 +897,7 @@ export default class Webform extends NestedDataComponent {
       this.submit(false, options).catch(e => e !== false && e !== undefined && console.log(e));
     }, true);
 
-    this.on('checkValidity', (data) => this.validate(data, data, { dirty: true, process: 'change' }), true);
+    this.on('checkValidity', (data) => this.validate(data, { dirty: true, process: 'change' }), true);
     this.on('requestUrl', (args) => (this.submitUrl(args.url,args.headers)), true);
     this.on('resetForm', () => this.resetValue(), true);
     this.on('deleteSubmission', () => this.deleteSubmission(), true);
@@ -1311,11 +1311,11 @@ export default class Webform extends NestedDataComponent {
     let errors = [];
     if (flags.noValidate && !flags.validateOnInit && !flags.fromIFrame) {
       if (flags.fromSubmission && this.rootPristine && this.pristine && flags.changed) {
-        errors = this.validate(value.data, value.data, { ...flags, process: 'change', alwaysDirty: !!this.options.alwaysDirty });
+        errors = this.validate(value.data, { ...flags, process: 'change', alwaysDirty: !!this.options.alwaysDirty });
       }
     }
     else {
-      errors = this.validate(value.data, value.data, {...flags, process: 'change'});
+      errors = this.validate(value.data, {...flags, process: 'change'});
     }
     value.isValid = errors.length === 0;
 
@@ -1417,7 +1417,7 @@ export default class Webform extends NestedDataComponent {
             }
             // Wizard forms store their component JSON in `originalComponents`
             const components = this.originalComponents || this.component.components;
-            const isValid = this.validateComponents(components, submission.data, submission.data, { dirty: true, silentCheck: false, process: 'submit' });
+            const isValid = this.validateComponents(components, submission.data, { dirty: true, silentCheck: false, process: 'submit' }).length === 0;
             if (!isValid || options.beforeSubmitResults?.some((result) => result.status === 'rejected')) {
               return reject();
             }
@@ -1535,6 +1535,49 @@ export default class Webform extends NestedDataComponent {
       }
     });
     this.serverErrors = [];
+  }
+
+  validateComponents(components, data, flags = {}) {
+    components = components || this.component.components;
+    data = data || this.data;
+    let { process, dirty } = flags;
+    const { async } = flags;
+    flags.recurse = true;
+    const processorContext = {
+      process,
+      components,
+      instances: this.childComponentsMap,
+      data: data,
+      scope: { errors: [] },
+      processors: [
+        (context) => {
+          let { path, scope } = context;
+          // TODO: now that validation is delegated to the child nested forms, this ensures that pathing deals with
+          // _parentPath in nested forms being (e.g. `form.data.${path}`) or _parentPath in nested forms that are
+          // nested in edit grids (e.g. `editGrid[0].form.data.${path}`)
+          if (this._parentPath) {
+            path = `${this._parentPath}${path}`;
+          }
+          if (!this.childComponentsMap[path]) {
+            return;
+          }
+          return this.childComponentsMap[path].checkComponentValidity(context.data, dirty, context.row, flags, scope.errors);
+        }
+      ]
+    };
+    process = process || 'unknown';
+    return async ? process(processorContext).then((scope) => scope.errors) : processSync(processorContext).errors;
+  }
+
+  /**
+   * Validate a form with data, or its own internal data.
+   * @param {*} data 
+   * @param {*} flags 
+   * @returns 
+   */
+  validate(data, flags = {}) {
+    data = data || this.data;
+    return this.validateComponents(this.component.components, data, flags);
   }
 
   /**
