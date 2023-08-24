@@ -497,12 +497,12 @@ export default class TreeComponent extends NestedDataComponent {
       data,
       instances,
       processors: [
-        validateProcessSync,
-        ({ component, path, scope }) => {
-          const interpolatedErrors = interpolateErrors(component, scope.errors, this.t.bind(this));
-          const updatedPath = `${this.path}.${path}`;
-          const componentInstance = this.childComponentsMap[updatedPath] || this.root?.childComponentsMap[updatedPath];
-          componentInstance?.setComponentValidity(interpolatedErrors, dirty, silentCheck);
+        ({ path, scope, data, row }) => {
+          path = `${this.path}.${path}`;
+          if (!this.childComponentsMap[path]) {
+            return;
+          }
+          return this.childComponentsMap[path].checkComponentValidity(data, dirty, row, { dirty, silentCheck }, scope.errors);
         }
       ]
     }).errors;

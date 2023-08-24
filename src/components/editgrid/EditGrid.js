@@ -1,5 +1,5 @@
 import _ from 'lodash';
-import { processSync, validateProcessSync } from '@formio/core';
+import { processSync } from '@formio/core';
 import { editgrid as templates } from '@formio/bootstrap/components';
 
 import NestedArrayComponent from '../_classes/nestedarray/NestedArrayComponent';
@@ -1170,12 +1170,12 @@ export default class EditGridComponent extends NestedArrayComponent {
         instances,
         scope: { errors: [] },
         processors: [
-          validateProcessSync,
-          ({ component, path, scope }) => {
-            const interpolatedErrors = interpolateErrors(component, scope.errors, this.t.bind(this));
-            const updatedPath = `${this.path}[${editRow.rowIndex}].${path}`;
-            const componentInstance = this.childComponentsMap[updatedPath] || this.root?.childComponentsMap[updatedPath];
-            componentInstance?.setComponentValidity(interpolatedErrors, dirty, silentCheck);
+          ({ path, scope, data, row }) => {
+            path = `${this.path}[${editRow.rowIndex}].${path}`;
+            if (!this.childComponentsMap[path]) {
+              return;
+            }
+            return this.childComponentsMap[path].checkComponentValidity(data, dirty, row, { dirty, silentCheck }, scope.errors);
           }
         ]
       }).errors;
@@ -1294,7 +1294,7 @@ export default class EditGridComponent extends NestedArrayComponent {
     const message = this.invalid || this.invalidMessage(this.data, dirty);
     if (messages.length !== errorsLength && this.root?.submitted && !message) {
       this.setCustomValidity(message, dirty);
-      this.root.showErrors();
+      this.root.showErrors(messages);
     }
     else {
       this.setCustomValidity(message, dirty);
@@ -1359,7 +1359,7 @@ export default class EditGridComponent extends NestedArrayComponent {
     const message = this.invalid || this.invalidMessage(data, dirty);
     if (this.root?.submitted && !message) {
       this.setCustomValidity(message, dirty);
-      this.root.showErrors();
+      this.root.showErrors([message]);
     }
     else {
       this.setCustomValidity(message, dirty);

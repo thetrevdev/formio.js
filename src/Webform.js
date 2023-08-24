@@ -1,6 +1,6 @@
 import _ from 'lodash';
 import moment from 'moment';
-import { processSync, validateProcess, validateProcessSync } from '@formio/core';
+import { process as processAsync, processSync } from '@formio/core';
 import { compareVersions } from 'compare-versions';
 
 import EventEmitter from './EventEmitter';
@@ -103,8 +103,6 @@ export default class Webform extends NestedDataComponent {
     else {
       this.triggerSaveDraft = this.saveDraft.bind(this);
     }
-
-    this.customErrors = [];
 
     /**
      * Determines if this form should submit the API on submit.
@@ -1126,7 +1124,6 @@ export default class Webform extends NestedDataComponent {
       errors = [errors];
     }
 
-    errors = errors.concat(this.customErrors);
     errors = errors.concat(this.serverErrors || []);
 
     if (!errors.length) {
@@ -1293,11 +1290,6 @@ export default class Webform extends NestedDataComponent {
   onChange(flags, changed, modified, changes) {
     flags = flags || {};
     let isChangeEventEmitted = false;
-    // For any change events, clear any custom errors for that component.
-    if (changed && changed.component) {
-      this.customErrors = this.customErrors.filter(err => err.component && err.component !== changed.component.key);
-    }
-
     super.onChange(flags, true);
     const value = _.clone(this.submission);
     flags.changed = value.changed = changed;
@@ -1417,9 +1409,9 @@ export default class Webform extends NestedDataComponent {
             }
             // Wizard forms store their component JSON in `originalComponents`
             const components = this.originalComponents || this.component.components;
-            const isValid = this.validateComponents(components, submission.data, { dirty: true, silentCheck: false, process: 'submit' }).length === 0;
-            if (!isValid || options.beforeSubmitResults?.some((result) => result.status === 'rejected')) {
-              return reject();
+            const errors = this.validateComponents(components, submission.data, { dirty: true, silentCheck: false, process: 'submit' });
+            if (errors.length || options.beforeSubmitResults?.some((result) => result.status === 'rejected')) {
+              return reject(errors);
             }
           }
         }
@@ -1448,11 +1440,7 @@ export default class Webform extends NestedDataComponent {
 
             // Ensure err is an array.
             err = Array.isArray(err) ? err : [err];
-
-            // Set as custom errors.
-            this.customErrors = err;
-
-            return reject();
+            return reject(err);
           }
 
           this.loading = true;
@@ -1540,18 +1528,15 @@ export default class Webform extends NestedDataComponent {
   validateComponents(components, data, flags = {}) {
     components = components || this.component.components;
     data = data || this.data;
-    let { process, dirty } = flags;
-    const { async } = flags;
-    flags.recurse = true;
+    const { async, dirty, process } = flags;
     const processorContext = {
-      process,
+      process: process || 'unknown',
       components,
       instances: this.childComponentsMap,
       data: data,
       scope: { errors: [] },
       processors: [
-        (context) => {
-          let { path, scope } = context;
+        ({ path, scope, data, row }) => {
           // TODO: now that validation is delegated to the child nested forms, this ensures that pathing deals with
           // _parentPath in nested forms being (e.g. `form.data.${path}`) or _parentPath in nested forms that are
           // nested in edit grids (e.g. `editGrid[0].form.data.${path}`)
@@ -1561,19 +1546,18 @@ export default class Webform extends NestedDataComponent {
           if (!this.childComponentsMap[path]) {
             return;
           }
-          return this.childComponentsMap[path].checkComponentValidity(context.data, dirty, context.row, flags, scope.errors);
+          return this.childComponentsMap[path].checkComponentValidity(data, dirty, row, flags, scope.errors);
         }
       ]
     };
-    process = process || 'unknown';
-    return async ? process(processorContext).then((scope) => scope.errors) : processSync(processorContext).errors;
+    return async ? processAsync(processorContext).then((scope) => scope.errors) : processSync(processorContext).errors;
   }
 
   /**
    * Validate a form with data, or its own internal data.
-   * @param {*} data 
-   * @param {*} flags 
-   * @returns 
+   * @param {*} data
+   * @param {*} flags
+   * @returns
    */
   validate(data, flags = {}) {
     data = data || this.data;

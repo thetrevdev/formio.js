@@ -3059,7 +3059,7 @@ export default class Component extends Element {
    * @param {*} flags - The flags to control the behavior of the validation.
    * @returns
    */
-  getValidationErrors(data, row, flags = {}) {
+  validate(data, row, flags = {}) {
     data = data || this.rootValue;
     row = row || this.data;
     const { async = false } = flags;
@@ -3098,16 +3098,16 @@ export default class Component extends Element {
     row = row || this.data;
     flags.dirty = dirty || false;
     if (flags.async) {
-      return this.getValidationErrors(data, row, flags).then((errors) => {
-        allErrors = allErrors.concat(errors);
+      return this.validate(data, row, flags).then((errors) => {
+        allErrors.push(...errors);
         this.showValidationErrors(errors, data, row, flags);
         return errors.length === 0;
       });
     }
     else {
-      const errors = this.getValidationErrors(data, row, flags);
+      const errors = this.validate(data, row, flags);
       this.showValidationErrors(errors, data, row, flags);
-      allErrors = allErrors.concat(errors);
+      allErrors.push(...errors);
       return errors.length === 0;
     }
   }
