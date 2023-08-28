@@ -313,6 +313,7 @@ export default class ButtonComponent extends Field {
         event.stopPropagation();
         this.loading = true;
         this.emit('submitButton', {
+          noValidate: this.component.state === 'draft',
           state: this.component.state || 'submitted',
           component: this.component,
           instance: this

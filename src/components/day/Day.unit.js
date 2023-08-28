@@ -236,11 +236,11 @@ describe('Day Component', () => {
         dayComponent.refs.day.dispatchEvent(new Event('input'));
 
         setTimeout(() => {
-          assert(!dayComponent.error, 'Day should be valid while changing');
+          assert(dayComponent._errors.length && dayComponent._errors[0].message === 'requiredDayField', 'Day should be valid while changing');
           dayComponent.refs.day.dispatchEvent(new Event('blur'));
 
           setTimeout(() => {
-            assert(dayComponent.error, 'Should set error after Day component was blurred');
+            assert(dayComponent._errors.length && dayComponent._errors[0].message === 'requiredDayField', 'Should set error after Day component was blurred');
             done();
           }, 200);
         }, 200);

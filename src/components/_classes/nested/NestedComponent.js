@@ -15,14 +15,8 @@ export default class NestedComponent extends Field {
   constructor(component, options, data) {
     super(component, options, data);
     this.type = 'components';
+    this.childErrors = [];
     this._collapsed = !!this.component.collapsed;
-
-    /**
-     * Points to a flat map of child components (if applicable).
-     *
-     * @type {Object}
-     */
-    this.childComponentsMap = {};
   }
 
   get defaultSchema() {
@@ -629,7 +623,6 @@ export default class NestedComponent extends Field {
     components = components && _.isArray(components) ? components : this.getComponents();
     super.checkData(data, flags, row);
     components.forEach((comp) => comp.checkData(data, flags, row));
-    this.checkModal();
   }
 
   checkConditions(data, flags, row) {
@@ -704,6 +697,14 @@ export default class NestedComponent extends Field {
     );
   }
 
+  checkComponentValidity(data, dirty, row, flags = {}, allErrors = []) {
+    if (this.childErrors.length) {
+      this.checkModal(this.childErrors, dirty);
+      this.childErrors = [];
+    }
+    return super.checkComponentValidity(data, dirty, row, flags, allErrors);
+  }
+
   checkValidity(data, dirty, row, silentCheck) {
     console.log('Deprecation warning:  Component.checkValidity() will be deprecated in 6.x version of renderer.');
     if (!this.checkCondition(row, data)) {
@@ -711,9 +712,7 @@ export default class NestedComponent extends Field {
       return true;
     }
 
-    const isValid = this.checkChildComponentsValidity(data, dirty, row, silentCheck, super.checkValidity(data, dirty, row, silentCheck));
-    this.checkModal(isValid, dirty);
-    return isValid;
+    return this.checkChildComponentsValidity(data, dirty, row, silentCheck, super.checkValidity(data, dirty, row, silentCheck));
   }
 
   checkAsyncValidity(data, dirty, row, silentCheck) {
@@ -808,9 +807,6 @@ export default class NestedComponent extends Field {
   setValue(value, flags = {}) {
     if (!value) {
       return false;
-    }
-    if (value.submitAsDraft && !value.submit) {
-      flags.noValidate = true;
     }
     return this.getComponents().reduce((changed, component) => {
       return this.setNestedValue(component, value, flags, changed) || changed;

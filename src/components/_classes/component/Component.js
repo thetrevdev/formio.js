@@ -279,6 +279,11 @@ export default class Component extends Element {
     this.path = '';
 
     /**
+     * Last validation errors that have occured.
+     */
+    this._errors = [];
+
+    /**
      * The Form.io component JSON schema.
      * @type {*}
      */
@@ -319,6 +324,13 @@ export default class Component extends Element {
      * @type {number}
      */
     this.row = this.options.row;
+
+    /**
+     * Points to a flat map of child components (if applicable).
+     *
+     * @type {Object}
+     */
+    this.childComponentsMap = {};
 
     /**
      * Determines if this component is disabled, or not.
@@ -1700,7 +1712,7 @@ export default class Component extends Element {
   }
 
   get errors() {
-    return this.getValidationErrors();
+    return this._errors;
   }
 
   /**
@@ -2706,6 +2718,10 @@ export default class Component extends Element {
    * @param flags
    */
   updateComponentValue(value, flags = {}) {
+    if (flags.fromSubmission) {
+      // Reset the errors when a submission has been made and allow it to revalidate.
+      this._errors = [];
+    }
     let newValue = (!flags.resetValue && (value === undefined || value === null)) ? this.getValue() : value;
     newValue = this.normalizeValue(newValue, flags);
     const oldValue = this.dataValue;
@@ -3009,17 +3025,15 @@ export default class Component extends Element {
     return !this.invalidMessage(data, dirty);
   }
 
-  setComponentValidity(messages, dirty, silentCheck) {
-    const errors = messages.filter(message => !message.fromServer).length;
-    if (messages.length && (!silentCheck || errors) && (!this.isEmpty(this.defaultValue) || dirty || !this.pristine)) {
+  setComponentValidity(errors, dirty, silentCheck) {
+    const messages = errors.filter(message => !message.fromServer);
+    if (errors.length && (!silentCheck || !!messages.length) && (!this.isEmpty(this.defaultValue) || dirty || !this.pristine)) {
       this.setCustomValidity(messages, dirty);
     }
     else if (!silentCheck) {
       this.setCustomValidity('');
     }
-
-    this.checkModal(errors, messages, dirty);
-    return errors;
+    return messages;
   }
 
   /**
@@ -3041,14 +3055,13 @@ export default class Component extends Element {
    * @returns
    */
   showValidationErrors(errors, data, row, flags) {
-    let isDirty = false;
-    if (this.options.alwaysDirty || flags.dirty) {
-      isDirty = true;
+    if (this.options.alwaysDirty) {
+      flags.dirty = true;
     }
     if (flags.fromSubmission && this.hasValue(data)) {
-      isDirty = true;
+      flags.dirty = true;
     }
-    this.setDirty(isDirty);
+    this.setDirty(flags.dirty);
     return this.setComponentValidity(errors, flags.dirty, flags.silentCheck, flags.fromSubmission);
   }
 
@@ -3059,7 +3072,7 @@ export default class Component extends Element {
    * @param {*} flags - The flags to control the behavior of the validation.
    * @returns
    */
-  validate(data, row, flags = {}) {
+  validateComponent(data, row, flags = {}) {
     data = data || this.rootValue;
     row = row || this.data;
     const { async = false } = flags;
@@ -3079,10 +3092,14 @@ export default class Component extends Element {
     };
 
     if (async) {
-      return processOne(processContext).then(() => this.interpolateErrors(processContext.scope.errors));
+      return processOne(processContext).then(() => {
+        this._errors = this.interpolateErrors(processContext.scope.errors);
+        return this._errors;
+      });
     }
     processOneSync(processContext);
-    return this.interpolateErrors(processContext.scope.errors);
+    this._errors = this.interpolateErrors(processContext.scope.errors);
+    return this._errors;
   }
 
   /**
@@ -3098,16 +3115,22 @@ export default class Component extends Element {
     row = row || this.data;
     flags.dirty = dirty || false;
     if (flags.async) {
-      return this.validate(data, row, flags).then((errors) => {
+      return this.validateComponent(data, row, flags).then((errors) => {
         allErrors.push(...errors);
+        if (this.parent && this.parent.childErrors) {
+          this.parent.childErrors.push(...errors);
+        }
         this.showValidationErrors(errors, data, row, flags);
         return errors.length === 0;
       });
     }
     else {
-      const errors = this.validate(data, row, flags);
+      const errors = this.validateComponent(data, row, flags);
       this.showValidationErrors(errors, data, row, flags);
       allErrors.push(...errors);
+      if (this.parent && this.parent.childErrors) {
+        this.parent.childErrors.push(...errors);
+      }
       return errors.length === 0;
     }
   }
@@ -3164,7 +3187,8 @@ export default class Component extends Element {
     }
   }
 
-  checkModal(errors = [], messages = [], dirty = false) {
+  checkModal(errors = [], dirty = false) {
+    const messages = errors.filter(error => !error.fromServer);
     const isValid = errors.length === 0;
     if (!this.component.modalEdit || !this.componentModal) {
       return;
@@ -3271,7 +3295,7 @@ export default class Component extends Element {
       }
     }
 
-    const errors = messages.filter(message => message.level === 'error').length;
+    const errors = messages.filter(message => message.level === 'error');
     let invalidInputRefs = inputRefs;
     // Filter the invalid input refs in multiple components
     if (this.component.multiple) {
@@ -3293,6 +3317,7 @@ export default class Component extends Element {
         this.empty(this.refs.messageContainer);
       }
       this.emit('componentError', {
+        instance: this,
         component: this.component,
         message: messages[0].message,
         messages,

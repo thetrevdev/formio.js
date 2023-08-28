@@ -1230,6 +1230,7 @@ describe('EditGrid Component', () => {
 
     Formio.createForm(element, form).then(form => {
       form.submission = {
+        state: 'draft',
         data: {
           'container': {
             'textField': '',

@@ -1374,13 +1374,14 @@ export function getArrayFromComponentPath(pathStr) {
     .map(part => _.defaultTo(_.toNumber(part), part));
 }
 
-export function  hasInvalidComponent(component) {
-  return component.getComponents().some((comp) => {
-    if (_.isArray(comp.components)) {
-      return hasInvalidComponent(comp);
+export function isChildOf(child, parent) {
+  while (child && child.parent) {
+    if (child.parent === parent) {
+      return true;
     }
-      return comp.error;
-  });
+    child = child.parent;
+  }
+  return false;
 }
 
 export function getStringFromComponentPath(path) {

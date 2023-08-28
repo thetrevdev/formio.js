@@ -1300,15 +1300,8 @@ export default class Webform extends NestedDataComponent {
     }
 
     this.checkData(value.data, flags);
-    let errors = [];
-    if (flags.noValidate && !flags.validateOnInit && !flags.fromIFrame) {
-      if (flags.fromSubmission && this.rootPristine && this.pristine && flags.changed) {
-        errors = this.validate(value.data, { ...flags, process: 'change', alwaysDirty: !!this.options.alwaysDirty });
-      }
-    }
-    else {
-      errors = this.validate(value.data, {...flags, process: 'change'});
-    }
+    const shouldValidate = !flags.noValidate || flags.fromIFrame || (flags.fromSubmission && this.rootPristine && this.pristine && flags.changed);
+    const errors = shouldValidate ? this.validate(value.data, { ...flags, process: 'change' }) : [];
     value.isValid = errors.length === 0;
 
     this.loading = false;
@@ -1403,13 +1396,17 @@ export default class Webform extends NestedDataComponent {
         submission._vnote = data && data._vnote ? data._vnote : '';
 
         try {
-          if (!isDraft) {
+          if (!isDraft && !options.noValidate) {
             if (!submission.data) {
               return reject('Invalid Submission');
             }
             // Wizard forms store their component JSON in `originalComponents`
             const components = this.originalComponents || this.component.components;
-            const errors = this.validateComponents(components, submission.data, { dirty: true, silentCheck: false, process: 'submit' });
+            const errors = this.validateComponents(components, submission.data, {
+              dirty: true,
+              silentCheck: false,
+              process: 'submit'
+            });
             if (errors.length || options.beforeSubmitResults?.some((result) => result.status === 'rejected')) {
               return reject(errors);
             }
