@@ -3146,12 +3146,13 @@ export default class Component extends Element {
   checkValidity(data, dirty, row, silentCheck) {
     data = data || this.rootValue;
     row = row || this.data;
-    console.log('Deprecation warning:  Component.checkValidity() will be deprecated in 6.x version of renderer.');
+    console.log('Deprecation warning:  Component.checkValidity() will be deprecated in 6.x version of renderer. Use Component.validateComponent instead.');
     return this.checkComponentValidity(data, dirty, row, { silentCheck });
   }
 
   checkAsyncValidity(data, dirty, row, silentCheck) {
-    return Promise.resolve(this.checkComponentValidity(data, dirty, row, { async: true, silentCheck }));
+    console.log('Deprecation warning:  Component.checkAsyncValidity() will be deprecated in 6.x version of renderer. Use Component.validateComponent instead.');
+    return this.checkComponentValidity(data, dirty, row, { async: true, silentCheck });
   }
 
   /**

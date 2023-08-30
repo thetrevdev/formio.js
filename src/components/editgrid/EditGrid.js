@@ -519,13 +519,10 @@ export default class EditGridComponent extends NestedArrayComponent {
             action: () => {
               this.editRow(rowIndex).then(() => {
                 if (this.component.rowDrafts) {
-                  this.validateRow(editRow, false);
-
-                  const hasErrors = editRow.errors && !!editRow.errors.length;
-                  const shouldShowRowErrorsAlert = this.component.modal && hasErrors && this.root?.submitted;
-
+                  const errors = this.validateRow(editRow, false);
+                  const shouldShowRowErrorsAlert = this.component.modal && errors.length && this.root?.submitted;
                   if (shouldShowRowErrorsAlert) {
-                    this.alert.showErrors(editRow.errors, false);
+                    this.alert.showErrors(errors, false);
                     editRow.alerts = true;
                   }
                 }
@@ -779,13 +776,15 @@ export default class EditGridComponent extends NestedArrayComponent {
         if (!this.component.rowDrafts) {
           editRow.components.forEach((comp) => comp.setPristine(false));
         }
-        if (this.validateRow(editRow, true) || this.component.rowDrafts) {
+
+        const errors = this.validateRow(editRow, true);
+        if (!errors.length || this.component.rowDrafts) {
           editRow.willBeSaved = true;
           dialog.close();
           this.saveRow(rowIndex, true);
         }
         else {
-          this.alert.showErrors(editRow.errors, false);
+          this.alert.showErrors(errors, false);
           editRow.alerts = true;
         }
       },
@@ -937,10 +936,10 @@ export default class EditGridComponent extends NestedArrayComponent {
       editRow.components.forEach((comp) => comp.setPristine(false));
     }
 
-    const isRowValid = this.validateRow(editRow, true);
+    const errors = this.validateRow(editRow, true);
 
     if (!this.component.rowDrafts) {
-      if (!isRowValid) {
+      if (errors.length) {
         return false;
       }
     }
@@ -968,7 +967,7 @@ export default class EditGridComponent extends NestedArrayComponent {
       }
     }
 
-    editRow.state = this.component.rowDrafts && !isRowValid ? EditRowState.Draft : EditRowState.Saved;
+    editRow.state = this.component.rowDrafts && errors.length ? EditRowState.Draft : EditRowState.Saved;
     editRow.backup = null;
 
     this.updateValue();
@@ -1151,9 +1150,7 @@ export default class EditGridComponent extends NestedArrayComponent {
   }
 
   validateRow(editRow, dirty, forceSilentCheck) {
-    let valid = true;
     let errors = [];
-
     if (this.shouldValidateRow(editRow, dirty)) {
       const silentCheck = (this.component.rowDrafts && !this.shouldValidateDraft(editRow)) || forceSilentCheck;
       // TODO: since our new validation system requires component JSON, we'll have to iterate over the editRow's components
@@ -1179,40 +1176,41 @@ export default class EditGridComponent extends NestedArrayComponent {
           }
         ]
       }).errors;
-      valid = errors.length === 0;
     }
 
     // TODO: this is essentially running its own custom validation and should be moved into a validation rule
     if (this.component.validate && this.component.validate.row) {
-      valid = this.evaluate(this.component.validate.row, {
-        valid,
+      const valid = this.evaluate(this.component.validate.row, {
+        valid: (editRow.length === 0),
         row: editRow.data
       }, 'valid', true);
       if (valid.toString() !== 'true') {
-        editRow.error = valid;
-        valid = false;
-      }
-      else {
-        editRow.error = null;
+        errors.push({
+          type: 'error',
+          rowError: true,
+          message: valid.toString()
+        });
       }
       if (valid === null) {
-        valid = `Invalid row validation for ${this.key}`;
+        errors.push({
+          type: 'error',
+          message: `Invalid row validation for ${this.key}`
+        });
       }
     }
 
-    editRow.errors = !valid ? errors : null;
     if (!this.component.rowDrafts || this.root?.submitted) {
-      this.showRowErrorAlerts(editRow, !!valid);
+      this.showRowErrorAlerts(editRow, errors);
     }
 
-    return !!valid;
+    return errors;
   }
 
-  showRowErrorAlerts(editRow, valid) {
+  showRowErrorAlerts(editRow, errors) {
     if (editRow.alerts) {
       if (this.alert) {
-        if (editRow.errors?.length && !valid) {
-          this.alert.showErrors(editRow.errors, false);
+        if (errors.length) {
+          this.alert.showErrors(errors, false);
           editRow.alerts = true;
         }
         else {
@@ -1222,88 +1220,9 @@ export default class EditGridComponent extends NestedArrayComponent {
     }
   }
 
-  checkValidity(data, dirty, row, silentCheck) {
-    data = data || this.rootValue;
-    row = row || this.data;
-
-    if (!this.checkCondition(row, data)) {
-      this.setCustomValidity('');
-      return true;
-    }
-
-    return this.checkComponentValidity(data, dirty, row, { silentCheck });
-  }
-
-  beforeSubmit() {
-    return new Promise((resolve, reject) => {
-      const result = this.editRows.reduce((acc, row) => {
-        const isValid = this.validateRow(row, true);
-        const rowIsSaved = !this.isOpen(row);
-        return isValid && rowIsSaved && acc;
-      }, true);
-      if (result) {
-        return resolve(true);
-      }
-      reject();
-    });
-  }
-
-  setComponentValidity(messages, dirty) {
-    const errorsLength = messages.length;
-    let rowsValid = true;
-    let rowsEditing = false;
-
-    const rowRefs = this.rowRefs || [];
-    rowRefs.forEach((ref, index) => {
-      const editRow = this.editRows[index];
-      if (editRow) {
-        // TODO: double validating here is a workaround for a particular corner case with nested forms as edit grid
-        // components and row drafts
-        const rowIsInvalid = !this.validateRow(editRow, dirty);
-        const errorContainer = ref.querySelector('.editgrid-row-error');
-
-        if (rowIsInvalid && errorContainer && dirty && (!this.component.rowDrafts || this.shouldValidateDraft(editRow))) {
-          rowsValid = false;
-          this.addClass(errorContainer,  'help-block' );
-          errorContainer.textContent = this.t(this.errorMessage(editRow.error || 'invalidRowError'));
-        }
-        else if (errorContainer) {
-          errorContainer.textContent = '';
-        }
-
-        // If this is a dirty check, and any rows are still editing, we need to throw validation error.
-        rowsEditing |= (dirty && this.isOpen(editRow));
-        if (this.rowDrafts || this.root?.submitted) {
-          this.showRowErrorAlerts(editRow, !rowIsInvalid);
-        }
-      }
-    });
-
-    if (!rowsValid) {
-      if ((!this.component.rowDrafts && dirty) || this.root?.submitted) {
-        this.setCustomValidity(this.t(this.errorMessage('invalidRowsError')), dirty);
-        // Delete this class, because otherwise all the components inside EditGrid will has red border even if they are valid
-        this.removeClass(this.element, 'has-error');
-      }
-      return;
-    }
-    else if (rowsEditing && this.saveEditMode) {
-      this.setCustomValidity(this.t(this.errorMessage('unsavedRowsError')), dirty);
-      return;
-    }
-    const message = this.invalid || this.invalidMessage(this.data, dirty);
-    if (messages.length !== errorsLength && this.root?.submitted && !message) {
-      this.setCustomValidity(message, dirty);
-      this.root.showErrors(messages);
-    }
-    else {
-      this.setCustomValidity(message, dirty);
-    }
-    return messages.length === 0;
-  }
-
   checkComponentValidity(data, dirty, row, options = {}) {
     const { silentCheck } = options;
+    const errors = [];
     const superValid = super.checkComponentValidity(data, dirty, row, options);
 
     // If super tells us that component invalid and there is no need to update alerts, just return false
@@ -1311,18 +1230,11 @@ export default class EditGridComponent extends NestedArrayComponent {
       return false;
     }
 
-    if (this.shouldSkipValidation(data, dirty, row)) {
-      return true;
-    }
-
-    let rowsValid = true;
     let rowsEditing = false;
-
     this.editRows.forEach((editRow, index) => {
       // Trigger all errors on the row.
-      const rowValid = this.validateRow(editRow, dirty, silentCheck);
-
-      rowsValid &= rowValid;
+      const rowErrors = this.validateRow(editRow, dirty, silentCheck);
+      errors.push(...rowErrors);
 
       if (this.rowRefs) {
         const rowContainer = this.rowRefs[index];
@@ -1330,9 +1242,10 @@ export default class EditGridComponent extends NestedArrayComponent {
         if (rowContainer) {
           const errorContainer = rowContainer.querySelector('.editgrid-row-error');
 
-          if (!rowValid && errorContainer && (!this.component.rowDrafts || this.shouldValidateDraft(editRow))) {
+          if (rowErrors.length && errorContainer && (!this.component.rowDrafts || this.shouldValidateDraft(editRow))) {
+            const rowError = rowErrors.find(error => error.rowError);
             this.addClass(errorContainer,  'help-block' );
-            errorContainer.textContent = this.t(this.errorMessage('invalidRowError'));
+            errorContainer.textContent = this.t(rowError ? rowError.message : this.errorMessage('invalidRowError'));
           }
           else if (errorContainer) {
             errorContainer.textContent = '';
@@ -1343,7 +1256,7 @@ export default class EditGridComponent extends NestedArrayComponent {
       rowsEditing |= (dirty && this.isOpen(editRow));
     });
 
-    if (!rowsValid) {
+    if (errors.length) {
       if (!silentCheck && (!this.component.rowDrafts || this.root?.submitted)) {
         this.setCustomValidity(this.t(this.errorMessage('invalidRowsError')), dirty);
         // Delete this class, because otherwise all the components inside EditGrid will has red border even if they are valid
@@ -1357,7 +1270,7 @@ export default class EditGridComponent extends NestedArrayComponent {
     }
 
     const message = this.invalid || this.invalidMessage(data, dirty);
-    if (this.root?.submitted && !message) {
+    if (errors.length && this.root?.submitted && !message) {
       this.setCustomValidity(message, dirty);
       this.root.showErrors([message]);
     }

@@ -1522,45 +1522,6 @@ export default class Webform extends NestedDataComponent {
     this.serverErrors = [];
   }
 
-  validateComponents(components, data, flags = {}) {
-    components = components || this.component.components;
-    data = data || this.data;
-    const { async, dirty, process } = flags;
-    const processorContext = {
-      process: process || 'unknown',
-      components,
-      instances: this.childComponentsMap,
-      data: data,
-      scope: { errors: [] },
-      processors: [
-        ({ path, scope, data, row }) => {
-          // TODO: now that validation is delegated to the child nested forms, this ensures that pathing deals with
-          // _parentPath in nested forms being (e.g. `form.data.${path}`) or _parentPath in nested forms that are
-          // nested in edit grids (e.g. `editGrid[0].form.data.${path}`)
-          if (this._parentPath) {
-            path = `${this._parentPath}${path}`;
-          }
-          if (!this.childComponentsMap[path]) {
-            return;
-          }
-          return this.childComponentsMap[path].checkComponentValidity(data, dirty, row, flags, scope.errors);
-        }
-      ]
-    };
-    return async ? processAsync(processorContext).then((scope) => scope.errors) : processSync(processorContext).errors;
-  }
-
-  /**
-   * Validate a form with data, or its own internal data.
-   * @param {*} data
-   * @param {*} flags
-   * @returns
-   */
-  validate(data, flags = {}) {
-    data = data || this.data;
-    return this.validateComponents(this.component.components, data, flags);
-  }
-
   /**
    * Submits the form.
    *

@@ -564,29 +564,6 @@ export default class DataGridComponent extends NestedArrayComponent {
     return components;
   }
 
-  /**
-   * Checks the validity of this datagrid.
-   *
-   * @param data
-   * @param dirty
-   * @return {*}
-   */
-  checkValidity(data, dirty, row, silentCheck) {
-    data = data || this.rootValue;
-    row = row || this.data;
-
-    if (!this.checkCondition(row, data)) {
-      this.setCustomValidity('');
-      return true;
-    }
-
-    if (!this.checkComponentValidity(data, dirty, row, { silentCheck })) {
-      return false;
-    }
-
-    return this.processRows('checkValidity', data, dirty, true, silentCheck);
-  }
-
   checkColumns(data, flags = {}) {
     data = data || this.rootValue;
     let show = false;

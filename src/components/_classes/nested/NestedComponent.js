@@ -3,7 +3,7 @@ import _ from 'lodash';
 import Field from '../field/Field';
 import Components from '../../Components';
 import { getArrayFromComponentPath, getStringFromComponentPath, getRandomComponentId } from '../../../utils/utils';
-
+import { process as processAsync, processSync } from '@formio/core';
 export default class NestedComponent extends Field {
   static schema(...extend) {
     return Field.schema({
@@ -690,11 +690,54 @@ export default class NestedComponent extends Field {
     );
   }
 
-  checkChildComponentsValidity(data, dirty, row, silentCheck, isParentValid) {
-    return this.getComponents().reduce(
-      (check, comp) => comp.checkValidity(data, dirty, row, silentCheck) && check,
-      isParentValid
-    );
+  /**
+   * Perform a validation on all child components of this nested component.
+   * @param {*} components
+   * @param {*} data
+   * @param {*} flags
+   * @returns
+   */
+  validateComponents(components, data, flags = {}) {
+    components = components || this.component.components;
+    data = data || this.data;
+    const { async, dirty, process } = flags;
+    const processorContext = {
+      process: process || 'unknown',
+      components,
+      instances: this.childComponentsMap,
+      data: data,
+      scope: { errors: [] },
+      processors: [
+        ({ path, scope, data, row }) => {
+          // TODO: now that validation is delegated to the child nested forms, this ensures that pathing deals with
+          // _parentPath in nested forms being (e.g. `form.data.${path}`) or _parentPath in nested forms that are
+          // nested in edit grids (e.g. `editGrid[0].form.data.${path}`)
+          if (this._parentPath) {
+            path = `${this._parentPath}${path}`;
+          }
+          if (!this.childComponentsMap[path]) {
+            return;
+          }
+          const component = this.childComponentsMap[path];
+          if (Array.isArray(row) && _.isNumber(component.rowIndex)) {
+            row = row[component.rowIndex];
+          }
+          return this.childComponentsMap[path].checkComponentValidity(data, dirty, row, flags, scope.errors);
+        }
+      ]
+    };
+    return async ? processAsync(processorContext).then((scope) => scope.errors) : processSync(processorContext).errors;
+  }
+
+  /**
+   * Validate a nested component with data, or its own internal data.
+   * @param {*} data
+   * @param {*} flags
+   * @returns
+   */
+  validate(data, flags = {}) {
+    data = data || this.data;
+    return this.validateComponents(this.component.components, data, flags);
   }
 
   checkComponentValidity(data, dirty, row, flags = {}, allErrors = []) {
@@ -706,21 +749,19 @@ export default class NestedComponent extends Field {
   }
 
   checkValidity(data, dirty, row, silentCheck) {
-    console.log('Deprecation warning:  Component.checkValidity() will be deprecated in 6.x version of renderer.');
-    if (!this.checkCondition(row, data)) {
-      this.setCustomValidity('');
-      return true;
-    }
-
-    return this.checkChildComponentsValidity(data, dirty, row, silentCheck, super.checkValidity(data, dirty, row, silentCheck));
+    console.log('Deprecation warning:  Component.checkValidity() will be deprecated in 6.x version of renderer. Use "validate" method instead.');
+    const childErrors = this.validate(data, { dirty, silentCheck });
+    return this.checkComponentValidity(data, dirty, row, { dirty, silentCheck }, childErrors) && childErrors.length === 0;
   }
 
   checkAsyncValidity(data, dirty, row, silentCheck) {
     console.log('Deprecation warning:  Component.checkAsyncValidity() will be deprecated in 6.x version of renderer.');
     return this.ready.then(() => {
-      const promises = [super.checkAsyncValidity(data, dirty, row, silentCheck)];
-      this.eachComponent((component) => promises.push(component.checkAsyncValidity(data, dirty, row, silentCheck)));
-      return Promise.all(promises).then((results) => results.reduce((valid, result) => (valid && result), true));
+      return this.validate(data, { dirty, silentCheck, async: true }).then((childErrors) => {
+        return this.checkComponentValidity(data, dirty, row, { dirty, silentCheck, async: true }, childErrors).then((valid) => {
+          return valid && childErrors.length === 0;
+        });
+      });
     });
   }
 
