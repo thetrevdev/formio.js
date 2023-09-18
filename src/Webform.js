@@ -1385,7 +1385,7 @@ export default class Webform extends NestedDataComponent {
 
       this.setMetadata(submission);
 
-      submission.state = options.state || 'submitted';
+      submission.state = options.state || submission.state || 'submitted';
 
       const isDraft = (submission.state === 'draft');
       this.hook('beforeSubmit', { ...submission, component: options.component }, (err , data) => {

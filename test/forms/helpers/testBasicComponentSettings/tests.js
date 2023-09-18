@@ -587,7 +587,7 @@ export default {
   //             const compType = comp.component.type;
 
   //             const isErrorHighlightClass = !!(comp.refs.openModalWrapper.classList.contains('formio-error-wrapper') || comp.componentModal.element.classList.contains('formio-error-wrapper'));
-  //             assert.deepEqual(comp.subForm ? !!comp.subForm.errors.length : !!comp.error, true, `${compKey} (component ${compType}): should contain validation error`);
+  //             assert.deepEqual(comp.subForm ? !!comp.subForm.errors.length : !!comp.errors.length, 1, `${compKey} (component ${compType}): should contain validation error`);
   //             //BUG in nested forms, remove the check once it is fixed
   //             if (compType !== 'form') {
   //               assert.deepEqual(isErrorHighlightClass, true, `${compKey} (component ${compType}): should highlight invalid modal button`);
@@ -743,8 +743,8 @@ export default {
 
           const getExpectedErrorMessage = () => `${comp.component.label} is required`;
 
-          assert.deepEqual(!!comp.error, true, `${compKey} (component ${compType}): should have required validation error`);
-          assert.deepEqual(comp.error.message, getExpectedErrorMessage(), `${compKey} (component ${compType}): should have correct rquired validation message`);
+          assert.deepEqual(!!comp.errors.length, 1, `${compKey} (component ${compType}): should have required validation error`);
+          assert.deepEqual(comp.errors[0].message, getExpectedErrorMessage(), `${compKey} (component ${compType}): should have correct rquired validation message`);
           assert.deepEqual(comp.pristine, false, `${compKey} (component ${compType}): should set pristine to false`);
           assert.deepEqual(comp.element.classList.contains('formio-error-wrapper'), true, `${compKey} (component ${compType}): should set error class`);
           //remove below line once tree validation error display is fixed
@@ -763,7 +763,7 @@ export default {
             const compType = comp.component.type;
 
             assert.deepEqual(comp.dataValue, _.get(values.values, compKey), `${compKey} (component ${compType}): should set value`);
-            assert.deepEqual(!!comp.error, false, `${compKey} (component ${compType}): Should remove error`);
+            assert.deepEqual(!!comp.errors.length, 0, `${compKey} (component ${compType}): Should remove error`);
             assert.deepEqual(comp.element.classList.contains('formio-error-wrapper'), false, `${compKey} (component ${compType}): Should remove error class`);
             assert.deepEqual(!!comp.refs.messageContainer.querySelector('.error'), false, `${compKey} (component ${compType}): should clear errors`);
           });
@@ -791,8 +791,8 @@ export default {
 
           const getExpectedErrorMessage = () => `${compKey}: custom validation error`;
 
-          assert.deepEqual(!!comp.error, true, `${compKey} (component ${compType}): should have required validation error`);
-          assert.deepEqual(comp.error.message, getExpectedErrorMessage(), `${compKey} (component ${compType}): should have correct custom validation message`);
+          assert.deepEqual(!!comp.errors.length, 1, `${compKey} (component ${compType}): should have required validation error`);
+          assert.deepEqual(comp.errors[0].message, getExpectedErrorMessage(), `${compKey} (component ${compType}): should have correct custom validation message`);
           //remove below line once tree validation error display is fixed
           if (_.includes(['tree'], comp.component.type)) return;
           assert.deepEqual(comp.refs.messageContainer.querySelector('.error')?.textContent.trim(), getExpectedErrorMessage(), `${compKey} (component ${compType}): should display custom error message`);
@@ -820,8 +820,8 @@ export default {
 
           const getExpectedErrorMessage = () => `Custom label for ${compKey} is required`;
 
-          assert.deepEqual(!!comp.error, true, `${compKey} (component ${compType}): should have required validation error with custom label`);
-          assert.deepEqual(comp.error.message, getExpectedErrorMessage(), `${compKey} (component ${compType}): should have correct required validation message with custom label`);
+          assert.deepEqual(!!comp.errors.length, 1, `${compKey} (component ${compType}): should have required validation error with custom label`);
+          assert.deepEqual(comp.errors[0].message, getExpectedErrorMessage(), `${compKey} (component ${compType}): should have correct required validation message with custom label`);
           //remove below line once tree validation error display is fixed
           if (_.includes(['tree'], comp.component.type)) return;
           assert.deepEqual(comp.refs.messageContainer.querySelector('.error')?.textContent.trim(), getExpectedErrorMessage(), `${compKey} (component ${compType}): should display error message with custom label`);
@@ -850,8 +850,8 @@ export default {
           const getExpectedErrorMessage = () => 'Custom validation message: component is invalid.';
 
           assert.deepEqual(comp.dataValue, _.get(values.values, compKey), `${compKey} (component ${compType}): should set value`);
-          assert.deepEqual(!!comp.error, true, `${compKey} (component ${compType}): should have validation error`);
-          assert.deepEqual(comp.error.message, getExpectedErrorMessage(), `${compKey} (component ${compType}): should have correct rquired validation message`);
+          assert.deepEqual(!!comp.errors.length, 1, `${compKey} (component ${compType}): should have validation error`);
+          assert.deepEqual(comp.errors[0].message, getExpectedErrorMessage(), `${compKey} (component ${compType}): should have correct rquired validation message`);
           assert.deepEqual(comp.pristine, false, `${compKey} (component ${compType}): should set pristine to false`);
           assert.deepEqual(comp.element.classList.contains('has-error'), true, `${compKey} (component ${compType}): should set error class`);
 
@@ -875,7 +875,7 @@ export default {
             const compKey = comp.component.key;
             const compType = comp.component.type;
 
-            assert.deepEqual(!!comp.error, false, `${compKey} (component ${compType}): Should remove validation error`);
+            assert.deepEqual(!!comp.errors.length, 0, `${compKey} (component ${compType}): Should remove validation error`);
             assert.deepEqual(comp.element.classList.contains('has-error'), false, `${compKey} (component ${compType}): Should remove error class`);
             assert.deepEqual(!!comp.refs.messageContainer.querySelector('.error'), false, `${compKey} (component ${compType}): should clear errors list`);
           });
@@ -916,8 +916,8 @@ export default {
 
             const getExpectedErrorMessage = () => `${comp.component.label} is required`;
 
-            assert.deepEqual(!!comp.error, true, `${compKey} (component ${compType}): should have required validation error`);
-            assert.deepEqual(comp.error.message, getExpectedErrorMessage(), `${compKey} (component ${compType}): should have correct rquired validation message`);
+            assert.deepEqual(!!comp.errors.length, 1, `${compKey} (component ${compType}): should have required validation error`);
+            assert.deepEqual(comp.errors[0].message, getExpectedErrorMessage(), `${compKey} (component ${compType}): should have correct rquired validation message`);
             assert.deepEqual(comp.pristine, false, `${compKey} (component ${compType}): should set pristine to false`);
             assert.deepEqual(comp.element.classList.contains('formio-error-wrapper'), true, `${compKey} (component ${compType}): should set error class`);
 
@@ -941,7 +941,7 @@ export default {
               const compKey = comp.component.key;
               const compType = comp.component.type;
 
-              assert.deepEqual(!!comp.error, false, `${compKey} (component ${compType}): Should remove valudation error`);
+              assert.deepEqual(!!comp.errors.length, 0, `${compKey} (component ${compType}): Should remove valudation error`);
               assert.deepEqual(comp.element.classList.contains('formio-error-wrapper'), false, `${compKey} (component ${compType}): Should remove error class`);
               assert.deepEqual(!!comp.refs.messageContainer.querySelector('.error'), false, `${compKey} (component ${compType}): should clear errors`);
             });

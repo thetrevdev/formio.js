@@ -298,12 +298,12 @@ describe('SelectBoxes Component', () => {
 
             setTimeout(()=>{
               assert.equal(form.errors.length, 1);
-              assert.equal(selectBoxes.error.message, 'Invalid Value Property');
+              assert.equal(selectBoxes.errors[0].message, 'Invalid Value Property');
               selectBoxes.setValue({ 'AL': true });
 
               setTimeout(()=>{
                 assert.equal(form.errors.length, 0);
-                assert.equal(!!selectBoxes.error, false);
+                assert.equal(!!selectBoxes.errors.length, 0);
                 document.innerHTML = '';
                 Formio.makeRequest = originalMakeRequest;
                 done();

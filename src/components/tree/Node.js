@@ -1,3 +1,4 @@
+import { Components } from '../Components';
 import _ from 'lodash';
 
 export default class Node {
@@ -198,7 +199,7 @@ export default class Node {
     this.components = this.createComponents(this.data, this);
     this.components.forEach((component) => {
       if (this.parentPath) {
-        const path = this.calculateComponentPath(component);
+        const path = Components.calculateComponentPath(component);
         component.path = path;
       }
     });
@@ -208,19 +209,5 @@ export default class Node {
   clearComponents() {
     this.removeComponents(this.components);
     this.components = [];
-  }
-
-  /**
-   * Return a path of component's value.
-   *
-   * @param {Object} component - The component instance.
-   * @return {string} - The component's value path.
-   */
-   calculateComponentPath(component) {
-    let path = '';
-    if (component.component.key) {
-      path = `${this.parentPath}.data.${component.component.key}`;
-    }
-    return path;
   }
 }

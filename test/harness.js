@@ -136,7 +136,8 @@ const Harness = {
       events: new EventEmitter(),
     }, options));
     component.pristine = false;
-    return new Promise((resolve, reject) => {
+    component.componentsMap[component.key] = component;
+    return new Promise((resolve) => {
       // Need a parent element to redraw.
       const parent = document.createElement('div');
       const element = document.createElement('div');

@@ -2267,7 +2267,7 @@ describe('Webform tests', function() {
 
         setTimeout(() => {
           const textField = component.iteratableRows[0].components.textField;
-          assert.equal(!!textField.error, false, 'Should stay valid on input');
+          assert.equal(!!textField.errors.length, 0, 'Should stay valid on input');
           const blur = new Event('blur', { bubbles: true, cancelable: true });
           const input = textField.refs.input[0];
           input.dispatchEvent(blur);

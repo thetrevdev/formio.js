@@ -69,6 +69,11 @@ export default class NestedArrayComponent extends NestedDataComponent {
     );
   }
 
+  validate(data, flags = {}) {
+    data = data || this.data;
+    return this.validateComponents([this.component], data, flags);
+  }
+
   processRow(method, data, opts, row, components, silentCheck) {
     if (opts?.isolateRow) {
       silentCheck = true;

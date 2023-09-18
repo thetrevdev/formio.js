@@ -1021,8 +1021,8 @@ describe('Wizard tests', () => {
       const checkInvalidComp = (compKey, highLight) => {
         const comp = wizard.getComponent(compKey);
 
-        assert.deepEqual(!!comp.error, true, `${compKey}: should have error`);
-        assert.deepEqual(comp.error.message, `${comp.component.label} is required`, `${compKey}: should have correct required validation message`);
+        assert.deepEqual(!!comp.errors.length, 1, `${compKey}: should have error`);
+        assert.deepEqual(comp.errors[0].message, `${comp.component.label} is required`, `${compKey}: should have correct required validation message`);
         assert.deepEqual(comp.pristine, false, `${compKey}: should set pristine to false`);
         assert.deepEqual(comp.element.classList.contains(`${highLight ? 'formio-error-wrapper' : 'has-error'}`), true, `${compKey}: should set error class`);
         assert.deepEqual(comp.refs.messageContainer.querySelector('.error').textContent.trim(), `${comp.component.label} is required`, `${compKey}: should display error message`);

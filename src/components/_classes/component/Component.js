@@ -276,7 +276,12 @@ export default class Component extends Element {
      *
      * @type {string}
      */
-    this.path = '';
+    this.path = component?.key || '';
+
+    /**
+     * An array of all the children components errors.
+     */
+    this.childErrors = [];
 
     /**
      * Last validation errors that have occured.
@@ -344,8 +349,8 @@ export default class Component extends Element {
      *
      * @type {Component}
      */
-    this.root = this.options.root;
-    this.localRoot = this.options.localRoot;
+    this.root = this.options.root || this;
+    this.localRoot = this.options.localRoot || this;
 
     /**
      * If this input has been input and provided value.
@@ -364,8 +369,6 @@ export default class Component extends Element {
     this.options.name = this.options.name || 'data';
 
     this._path = '';
-    // Nested forms don't have parents so we need to pass their path in.
-    this._parentPath = this.options.parentPath || '';
 
     // Needs for Nextgen Rules Engine
     this.resetCaches();
@@ -476,6 +479,15 @@ export default class Component extends Element {
     }
   }
   /* eslint-enable max-statements */
+
+  get componentsMap() {
+    if (this.localRoot?.childComponentsMap) {
+      return this.localRoot.childComponentsMap;
+    }
+    const localMap = {};
+    localMap[this.path] = this;
+    return localMap;
+  }
 
   get data() {
     return this._data;
@@ -3143,16 +3155,16 @@ export default class Component extends Element {
    * @param {*} silentCheck
    * @returns
    */
-  checkValidity(data, dirty, row, silentCheck) {
+  checkValidity(data, dirty, row, silentCheck, errors = []) {
     data = data || this.rootValue;
     row = row || this.data;
     console.log('Deprecation warning:  Component.checkValidity() will be deprecated in 6.x version of renderer. Use Component.validateComponent instead.');
-    return this.checkComponentValidity(data, dirty, row, { silentCheck });
+    return this.checkComponentValidity(data, dirty, row, { silentCheck }, errors);
   }
 
-  checkAsyncValidity(data, dirty, row, silentCheck) {
+  checkAsyncValidity(data, dirty, row, silentCheck, errors = []) {
     console.log('Deprecation warning:  Component.checkAsyncValidity() will be deprecated in 6.x version of renderer. Use Component.validateComponent instead.');
-    return this.checkComponentValidity(data, dirty, row, { async: true, silentCheck });
+    return this.checkComponentValidity(data, dirty, row, { async: true, silentCheck }, errors);
   }
 
   /**
@@ -3341,6 +3353,7 @@ export default class Component extends Element {
       }
       this.clearErrorClasses();
     }
+    return messages;
   }
 
   /**

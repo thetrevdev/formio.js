@@ -1,10 +1,10 @@
 import _ from 'lodash';
-import { processSync, validateProcessSync } from '@formio/core';
+import { processSync } from '@formio/core';
 
 import Component from '../_classes/component/Component';
 import NestedDataComponent from '../_classes/nesteddata/NestedDataComponent';
 import Node from './Node';
-import { eachComponent, interpolateErrors } from '../../utils/utils';
+import { eachComponent } from '../../utils/utils';
 
 export default class TreeComponent extends NestedDataComponent {
   static schema(...extend) {
@@ -122,15 +122,6 @@ export default class TreeComponent extends NestedDataComponent {
     }
 
     return super.render(this.renderTree(this.treeRoot));
-  }
-
-  beforeSubmit() {
-    return new Promise((resolve, reject) => {
-      if (this.validateNodes(this.treeRoot, { dirty: true })) {
-        return resolve();
-      }
-      reject();
-    });
   }
 
   renderTree(node = {}, odd = true) {
@@ -485,37 +476,41 @@ export default class TreeComponent extends NestedDataComponent {
     node.children.forEach((child) => this.checkNode(data, child, flags, row));
   }
 
-  validateNode(node, dirty, silentCheck) {
+  validateNode(node, dirty, silentCheck, allErrors = []) {
     const components = node.getComponents().map((comp) => comp.component);
     const data = node.data;
     const instances = {};
     eachComponent(components, (_, path) => {
-      instances[path] = this.childComponentsMap[`${this.path}.${path}`];
+      instances[path] = this.componentsMap[`${this.path}.${path}`];
     });
     const errors = processSync({
       components,
       data,
       instances,
       processors: [
-        ({ path, scope, data, row }) => {
-          path = `${this.path}.${path}`;
-          if (!this.childComponentsMap[path]) {
-            return;
-          }
-          return this.childComponentsMap[path].checkComponentValidity(data, dirty, row, { dirty, silentCheck }, scope.errors);
-        }
+        (context) => this.validationProcessor(context, { dirty, silentCheck })
       ]
     }).errors;
+    allErrors.push(...errors);
     return errors.length === 0;
   }
 
-  validateNodes(node, flags) {
+  validateNodes(node, flags, errors = []) {
     const { dirty, silentCheck } = flags;
-    const isValid = this.validateNode(node, false);
+    const isValid = this.validateNode(node, false, errors);
     return node.children.reduce(
-      (result, child) => this.validateNode(child, dirty, silentCheck) && result,
+      (result, child) => this.validateNode(child, dirty, silentCheck, errors) && result,
       isValid && !node.editing && !node.new,
     );
+  }
+
+  get processOwnValidation() {
+    return true;
+  }
+
+  checkComponentValidity(data, dirty, row, flags = {}, errors = []) {
+    flags.dirty = flags.hasOwnProperty('dirty') ? flags.dirty : dirty;
+    return this.validateNodes(this.treeRoot, flags, errors);
   }
 
   getComponents() {

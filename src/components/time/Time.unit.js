@@ -65,7 +65,7 @@ describe('Time Component', () => {
       const component = form.components[0];
       Harness.setInputValue(component, 'data[time]', '89:19');
       setTimeout(() => {
-        assert.equal(component.error.message, 'Invalid time', 'Should have an error');
+        assert.equal(component.errors[0].message, 'Invalid time', 'Should have an error');
         done();
       }, 650);
     }).catch(done);

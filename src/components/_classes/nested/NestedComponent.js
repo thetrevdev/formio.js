@@ -15,7 +15,6 @@ export default class NestedComponent extends Field {
   constructor(component, options, data) {
     super(component, options, data);
     this.type = 'components';
-    this.childErrors = [];
     this._collapsed = !!this.component.collapsed;
   }
 
@@ -286,33 +285,6 @@ export default class NestedComponent extends Field {
   }
 
   /**
-   * Return a path of component's value.
-   *
-   * @param {Object} component - The component instance.
-   * @return {string} - The component's value path.
-   */
-  calculateComponentPath(component) {
-    let path = '';
-    if (component.component.key) {
-      let thisPath = this;
-      while (thisPath && !thisPath.allowData && thisPath.parent) {
-        thisPath = thisPath.parent;
-      }
-      // TODO: any component that is nested in e.g. a Data Grid or an Edit Grid is going to receive a row prop; the problem
-      // is that options.row is passed to each further nested component, which results in erroneous paths like
-      // `editGrid[0].container[0].textField` rather than `editGrid[0].container.textField`. This should be adapted for other
-      // components with a tree-like data model
-      const rowIndex = component.row && !['container'].includes(thisPath.component.type) ? `[${Number.parseInt(component.row)}]` : '';
-      path = thisPath.path ? `${thisPath.path}${rowIndex}.` : '';
-      if (!path.includes(component._parentPath)) {
-        path += (component._parentPath && component.component.shouldIncludeSubFormPath) ? component._parentPath : '';
-      }
-      path += component.component.key;
-      return path;
-    }
-  }
-
-  /**
    * Create a new component and add it to the components array.
    *
    * @param component
@@ -332,15 +304,7 @@ export default class NestedComponent extends Field {
     if (!(options.display === 'pdf' && this.builderMode)) {
       component.id = getRandomComponentId();
     }
-    if (!this.isInputComponent && this.component.shouldIncludeSubFormPath) {
-      component.shouldIncludeSubFormPath = true;
-    }
     const comp = Components.create(component, options, data, true);
-
-    const path = this.calculateComponentPath(comp);
-    if (path) {
-      comp.path = path;
-    }
     comp.init();
     if (component.internal) {
       return comp;
@@ -367,13 +331,6 @@ export default class NestedComponent extends Field {
     else {
       this.components.push(comp);
     }
-    if (this.root) {
-      this.root.childComponentsMap[comp.path] = comp;
-    }
-    if (this.parent) {
-      this.parent.childComponentsMap[comp.path] = comp;
-    }
-    this.childComponentsMap[comp.path] = comp;
     return comp;
   }
 
@@ -428,9 +385,6 @@ export default class NestedComponent extends Field {
   addComponent(component, data, before, noAdd) {
     data = data || this.data;
     this.components = this.components || [];
-    if (this.options.parentPath) {
-      component.shouldIncludeSubFormPath = true;
-    }
     component = this.hook('addComponent', component, data, before, noAdd);
     const comp = this.createComponent(component, this.options, data, before ? before : null);
     if (noAdd) {
@@ -542,14 +496,8 @@ export default class NestedComponent extends Field {
     components = components || this.components;
     component.destroy(all);
     _.remove(components, { id: component.id });
-    if (this.root?.childComponentsMap[component.path]) {
-      delete this.root.childComponentsMap[component.path];
-    }
-    if (this.parent?.childComponentsMap[component.path]) {
-      delete this.parent.childComponentsMap[component.path];
-    }
-    if (this.childComponentsMap[component.path]) {
-      delete this.childComponentsMap[component.path];
+    if (this.componentsMap[component.path]) {
+      delete this.componentsMap[component.path];
     }
   }
 
@@ -690,6 +638,17 @@ export default class NestedComponent extends Field {
     );
   }
 
+  validationProcessor({ scope, data, row, instance }, flags) {
+    const { dirty } = flags;
+    if (!instance) {
+      return;
+    }
+    instance.checkComponentValidity(data, dirty, row, flags, scope.errors);
+    if (instance.processOwnValidation) {
+      scope.noRecurse = true;
+    }
+  }
+
   /**
    * Perform a validation on all child components of this nested component.
    * @param {*} components
@@ -699,30 +658,26 @@ export default class NestedComponent extends Field {
    */
   validateComponents(components, data, flags = {}) {
     components = components || this.component.components;
-    data = data || this.data;
+    data = data || this.rootValue;
     const { async, dirty, process } = flags;
     const processorContext = {
       process: process || 'unknown',
       components,
-      instances: this.childComponentsMap,
+      instances: this.componentsMap,
       data: data,
       scope: { errors: [] },
       processors: [
-        ({ path, scope, data, row }) => {
-          // TODO: now that validation is delegated to the child nested forms, this ensures that pathing deals with
-          // _parentPath in nested forms being (e.g. `form.data.${path}`) or _parentPath in nested forms that are
-          // nested in edit grids (e.g. `editGrid[0].form.data.${path}`)
-          if (this._parentPath) {
-            path = `${this._parentPath}${path}`;
+        (context) => this.validationProcessor(context, flags),
+        ({ instance, component, components }) => {
+          // If we just validated the last component, and there are errors from our parent, then we need to show a model of those errors.
+          if (
+            instance &&
+            instance.parent &&
+            (component === components[components.length - 1]) &&
+            instance.parent.childErrors?.length
+          ) {
+            instance.parent.checkModal(instance.parent.childErrors, dirty);
           }
-          if (!this.childComponentsMap[path]) {
-            return;
-          }
-          const component = this.childComponentsMap[path];
-          if (Array.isArray(row) && _.isNumber(component.rowIndex)) {
-            row = row[component.rowIndex];
-          }
-          return this.childComponentsMap[path].checkComponentValidity(data, dirty, row, flags, scope.errors);
         }
       ]
     };
@@ -736,21 +691,18 @@ export default class NestedComponent extends Field {
    * @returns
    */
   validate(data, flags = {}) {
-    data = data || this.data;
+    data = data || this.rootValue;
     return this.validateComponents(this.component.components, data, flags);
   }
 
   checkComponentValidity(data, dirty, row, flags = {}, allErrors = []) {
-    if (this.childErrors.length) {
-      this.checkModal(this.childErrors, dirty);
-      this.childErrors = [];
-    }
+    this.childErrors = [];
     return super.checkComponentValidity(data, dirty, row, flags, allErrors);
   }
 
-  checkValidity(data, dirty, row, silentCheck) {
+  checkValidity(data, dirty, row, silentCheck, childErrors = []) {
     console.log('Deprecation warning:  Component.checkValidity() will be deprecated in 6.x version of renderer. Use "validate" method instead.');
-    const childErrors = this.validate(data, { dirty, silentCheck });
+    childErrors.push(...this.validate(data, { dirty, silentCheck }));
     return this.checkComponentValidity(data, dirty, row, { dirty, silentCheck }, childErrors) && childErrors.length === 0;
   }
 
@@ -804,7 +756,7 @@ export default class NestedComponent extends Field {
   }
 
   get errors() {
-    const thisErrors = this.error ? [this.error] : [];
+    const thisErrors = super.errors;
     return this.getComponents()
       .reduce((errors, comp) => errors.concat(comp.errors || []), thisErrors)
       .filter(err => err.level !== 'hidden');

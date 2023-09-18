@@ -1,6 +1,7 @@
 import _ from 'lodash';
 import NestedArrayComponent from '../_classes/nestedarray/NestedArrayComponent';
 import { fastCloneDeep, getFocusableElements } from '../../utils/utils';
+import { Components } from '../Components';
 
 export default class DataGridComponent extends NestedArrayComponent {
   static schema(...extend) {
@@ -467,7 +468,7 @@ export default class DataGridComponent extends NestedArrayComponent {
       }
       component.rowIndex = rowIndex;
       component.row = `${rowIndex}-${colIndex}`;
-      component.path = this.calculateComponentPath(component);
+      component.path = Components.getComponentPath(component);
     });
   }
 

@@ -240,7 +240,7 @@ export default class SelectBoxesComponent extends RadioComponent {
     }
   }
 
-  checkComponentValidity(data, dirty, rowData, options) {
+  checkComponentValidity(data, dirty, rowData, options, errors = []) {
     const minCount = this.component.validate.minSelectedCount;
     const maxCount = this.component.validate.maxSelectedCount;
     if (!this.shouldSkipValidation(data, rowData)) {
@@ -266,6 +266,7 @@ export default class SelectBoxesComponent extends RadioComponent {
             this.component.maxSelectedCountMessage || 'You may only select up to {{maxCount}} items',
             { maxCount }
           );
+          this.errors.push({ message });
           this.setCustomValidity(message, dirty);
           return false;
         }
@@ -275,13 +276,14 @@ export default class SelectBoxesComponent extends RadioComponent {
             this.component.minSelectedCountMessage || 'You must select at least {{minCount}} items',
             { minCount }
           );
+          this.errors.push({ message });
           this.setCustomValidity(message, dirty);
           return false;
         }
       }
     }
 
-    return super.checkComponentValidity(data, dirty, rowData, options);
+    return super.checkComponentValidity(data, dirty, rowData, options, errors);
   }
 
   validateValueAvailability(setting, value) {

@@ -94,17 +94,12 @@ describe('Day Component', () => {
   it('Should not allow invalid days', (done) => {
     comp1.dayFirst = false;
     Harness.testCreate(DayComponent, comp1).then((component) => {
-      component.on('componentError', (err) => {
-        assert.equal(err.message, 'Date is not a valid day.');
-        assert.equal(err.component.key, 'date');
-        done();
-      });
-
-      component.on('componentChange', () => {
-        component.checkValidity();
-      });
-
       component.setValue('3/40/2017');
+      component.checkValidity();
+      assert.equal(component.errors.length, 1);
+      assert.equal(component.errors[0].message, 'Date is not a valid day.');
+      assert.equal(component.errors[0].component.key, 'date');
+      done();
     });
   });
 
@@ -122,12 +117,12 @@ describe('Day Component', () => {
     Harness.testCreate(DayComponent, comp1).then((component) => {
       component.setValue('01/05/2018');
       assert.equal(component.getValue(), '01/05/2018');
-      component.on('componentChange', () => {
-        assert.equal(component.getValue(), '02/05/2018');
-        done();
-      });
       component.refs.month.value = 2;
       component.refs.month.dispatchEvent(new Event('input'));
+      setTimeout(() => {
+        assert.equal(component.getValue(), '02/05/2018');
+        done();
+      }, 10);
     });
   });
 
@@ -135,12 +130,12 @@ describe('Day Component', () => {
     Harness.testCreate(DayComponent, comp1).then((component) => {
       component.setValue('01/31/2018');
       assert.equal(component.getValue(), '01/31/2018');
-      component.on('componentChange', () => {
-        assert.equal(component.getValue(), '02/28/2018');
-        done();
-      });
       component.refs.month.value = 2;
       component.refs.month.dispatchEvent(new Event('input'));
+      setTimeout(() => {
+        assert.equal(component.getValue(), '02/28/2018');
+        done();
+      }, 10);
     });
   });
 

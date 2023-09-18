@@ -10,8 +10,7 @@ import {
   Evaluator,
   getArrayFromComponentPath,
   eachComponent,
-  getComponentsSchema,
-  interpolateErrors
+  getComponentsSchema
 } from '../../utils/utils';
 
 const EditRowState = {
@@ -1150,30 +1149,25 @@ export default class EditGridComponent extends NestedArrayComponent {
   }
 
   validateRow(editRow, dirty, forceSilentCheck) {
-    let errors = [];
+    editRow.errors = [];
     if (this.shouldValidateRow(editRow, dirty)) {
       const silentCheck = (this.component.rowDrafts && !this.shouldValidateDraft(editRow)) || forceSilentCheck;
-      // TODO: since our new validation system requires component JSON, we'll have to iterate over the editRow's components
-      // until we can figure out a better way to "integrate" Edit Grids into a cohesive validation scheme
-      const components = getComponentsSchema(editRow.components);
-      const instances = {};
-      eachComponent(components, (_, path) => {
-        instances[path] = this.childComponentsMap[`${this.path}[${editRow.rowIndex}].${path}`];
-      });
-      errors = processSync({
-        components,
-        data: editRow.data,
+      const rootValue = fastCloneDeep(this.rootValue);
+      const editGridValue = _.get(rootValue, this.path, []);
+      editGridValue[editRow.rowIndex] = editRow.data;
+      _.set(rootValue, this.path, editGridValue);
+      editRow.errors = processSync({
+        components: fastCloneDeep(this.component.components).map((component) => {
+          component.parentPath = `${this.path}[${editRow.rowIndex}]`;
+          return component;
+        }),
+        data: rootValue,
+        row: editRow.data,
         process: 'validateRow',
-        instances,
+        instances: this.componentsMap,
         scope: { errors: [] },
         processors: [
-          ({ path, scope, data, row }) => {
-            path = `${this.path}[${editRow.rowIndex}].${path}`;
-            if (!this.childComponentsMap[path]) {
-              return;
-            }
-            return this.childComponentsMap[path].checkComponentValidity(data, dirty, row, { dirty, silentCheck }, scope.errors);
-          }
+          (context) => this.validationProcessor(context, { dirty, silentCheck })
         ]
       }).errors;
     }
@@ -1185,14 +1179,14 @@ export default class EditGridComponent extends NestedArrayComponent {
         row: editRow.data
       }, 'valid', true);
       if (valid.toString() !== 'true') {
-        errors.push({
+        editRow.errors.push({
           type: 'error',
           rowError: true,
           message: valid.toString()
         });
       }
       if (valid === null) {
-        errors.push({
+        editRow.errors.push({
           type: 'error',
           message: `Invalid row validation for ${this.key}`
         });
@@ -1200,10 +1194,10 @@ export default class EditGridComponent extends NestedArrayComponent {
     }
 
     if (!this.component.rowDrafts || this.root?.submitted) {
-      this.showRowErrorAlerts(editRow, errors);
+      this.showRowErrorAlerts(editRow, editRow.errors);
     }
 
-    return errors;
+    return editRow.errors;
   }
 
   showRowErrorAlerts(editRow, errors) {
@@ -1220,10 +1214,16 @@ export default class EditGridComponent extends NestedArrayComponent {
     }
   }
 
-  checkComponentValidity(data, dirty, row, options = {}) {
+  /**
+   * Return that this component processes its own validation.
+   */
+  get processOwnValidation() {
+    return true;
+  }
+
+  checkComponentValidity(data, dirty, row, options = {}, errors = []) {
     const { silentCheck } = options;
-    const errors = [];
-    const superValid = super.checkComponentValidity(data, dirty, row, options);
+    const superValid = super.checkComponentValidity(data, dirty, row, options, errors);
 
     // If super tells us that component invalid and there is no need to update alerts, just return false
     if (!superValid && (!this.alert && !this.hasOpenRows())) {
@@ -1258,24 +1258,28 @@ export default class EditGridComponent extends NestedArrayComponent {
 
     if (errors.length) {
       if (!silentCheck && (!this.component.rowDrafts || this.root?.submitted)) {
-        this.setCustomValidity(this.t(this.errorMessage('invalidRowsError')), dirty);
+        this._errors = this.setCustomValidity(this.t(this.errorMessage('invalidRowsError')), dirty);
+        errors.push(...this._errors);
         // Delete this class, because otherwise all the components inside EditGrid will has red border even if they are valid
         this.removeClass(this.element, 'has-error');
       }
       return false;
     }
     else if (rowsEditing && this.saveEditMode) {
-      this.setCustomValidity(this.t(this.errorMessage('unsavedRowsError')), dirty);
+      this._errors = this.setCustomValidity(this.t(this.errorMessage('unsavedRowsError')), dirty);
+      errors.push(...this._errors);
       return false;
     }
 
     const message = this.invalid || this.invalidMessage(data, dirty);
     if (errors.length && this.root?.submitted && !message) {
-      this.setCustomValidity(message, dirty);
+      this._errors = this.setCustomValidity(message, dirty);
+      errors.push(...this._errors);
       this.root.showErrors([message]);
     }
     else {
-      this.setCustomValidity(message, dirty);
+      this._errors = this.setCustomValidity(message, dirty);
+      errors.push(...this._errors);
     }
     return superValid;
   }
@@ -1316,7 +1320,6 @@ export default class EditGridComponent extends NestedArrayComponent {
     }
 
     const changed = this.hasChanged(value, this.dataValue);
-    flags.noValidate = !changed;
     if (this.parent) {
       this.parent.checkComponentConditions();
     }
@@ -1329,7 +1332,7 @@ export default class EditGridComponent extends NestedArrayComponent {
         this.restoreRowContext(editRow, flags);
         editRow.state = EditRowState.Saved;
         editRow.backup = null;
-        editRow.error = null;
+        editRow.errors = [];
       }
       else {
         this.editRows[rowIndex] = {
@@ -1337,7 +1340,7 @@ export default class EditGridComponent extends NestedArrayComponent {
           data: row,
           state: EditRowState.Saved,
           backup: null,
-          error: null,
+          errors: [],
         };
       }
     });
